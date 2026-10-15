@@ -9,7 +9,6 @@ import {
   Users,
   Layers,
   Search,
-  Sparkles,
   ArrowRight,
   Loader2,
   X
@@ -142,12 +141,12 @@ export const DashboardPage: React.FC = () => {
 
         {/* Empty State */}
         {!isLoading && filteredRooms.length === 0 && (
-          <div className="py-20 flex flex-col items-center justify-center text-center rounded-3xl glass-panel border border-white/10 p-8">
-            <div className="w-16 h-16 rounded-3xl bg-brand-500/10 text-brand-400 flex items-center justify-center mb-4">
-              <Sparkles className="w-8 h-8" />
+          <div className="py-20 flex flex-col items-center justify-center text-center rounded-xl bg-paper-card border border-border-paper p-8 shadow-paper">
+            <div className="w-16 h-16 rounded-xl bg-accent/20 border border-ink text-ink flex items-center justify-center mb-4 shadow-[2px_2.5px_0px_#111110]">
+              <Layers className="w-7 h-7" />
             </div>
-            <h3 className="font-display font-bold text-lg text-white">No whiteboards found</h3>
-            <p className="text-slate-400 text-xs max-w-sm mt-1 mb-6">
+            <h3 className="font-serif font-bold text-2xl text-ink">No whiteboards found</h3>
+            <p className="text-ink-muted text-xs max-w-sm mt-1 mb-6">
               Create your first infinite collaborative whiteboard or join an existing session using an invite code.
             </p>
             <button

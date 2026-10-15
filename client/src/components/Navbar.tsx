@@ -9,7 +9,6 @@ import {
   Moon,
   Sun,
   LogOut,
-  Sparkles,
   Lock,
   Globe
 } from 'lucide-react';
@@ -44,7 +43,7 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   const [copied, setCopied] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
-  const [isDark, setIsDark] = useState(true);
+  const [isDark, setIsDark] = useState(false);
 
   const collaborators = Object.values(remotePresences);
 
@@ -70,12 +69,18 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   const toggleTheme = () => {
-    document.documentElement.classList.toggle('dark');
-    setIsDark(!isDark);
+    const isCurrentlyDark = document.documentElement.classList.contains('dark');
+    if (isCurrentlyDark) {
+      document.documentElement.classList.remove('dark');
+      setIsDark(false);
+    } else {
+      document.documentElement.classList.add('dark');
+      setIsDark(true);
+    }
   };
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-40 h-14 glass-panel border-b border-white/10 dark:border-white/10 px-4 flex items-center justify-between">
+    <header className="fixed top-0 left-0 right-0 z-40 h-16 bg-paper/90 backdrop-blur-md border-b border-border-paper px-4 md:px-8 flex items-center justify-between transition-colors">
       {/* Left: Brand or Back + Room Name */}
       <div className="flex items-center gap-3">
         {isBoard ? (
@@ -83,19 +88,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={() => navigate('/dashboard')}
               title="Back to Dashboard"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/5 transition-colors flex items-center gap-1"
+              className="p-1.5 rounded-md text-ink-muted hover:text-ink hover:bg-paper-muted transition-colors flex items-center gap-1 cursor-pointer"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
             <div className="flex items-center gap-2">
-              <span className="font-semibold text-sm text-white max-w-[180px] md:max-w-xs truncate">
+              <span className="font-semibold text-sm text-ink max-w-[180px] md:max-w-xs truncate">
                 {roomName || 'Untitled Board'}
               </span>
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-white/5 border border-white/10 text-slate-300">
+              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-mono font-medium bg-paper-card border border-border-paper text-ink-muted">
                 {visibility === 'private' ? (
-                  <Lock className="w-3 h-3 text-amber-400" />
+                  <Lock className="w-3 h-3 text-amber-500" />
                 ) : (
-                  <Globe className="w-3 h-3 text-emerald-400" />
+                  <Globe className="w-3 h-3 text-emerald-500" />
                 )}
                 <span className="capitalize hidden sm:inline">{visibility}</span>
               </span>
@@ -104,12 +109,12 @@ export const Navbar: React.FC<NavbarProps> = ({
         ) : (
           <div
             onClick={() => navigate('/')}
-            className="flex items-center gap-2.5 cursor-pointer group"
+            className="flex items-center gap-2 cursor-pointer group"
           >
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-brand-500 to-accent-500 flex items-center justify-center shadow-lg shadow-brand-500/25 group-hover:scale-105 transition-transform">
-              <Sparkles className="w-4 h-4 text-white" />
+            <div className="w-7 h-7 rounded-sm bg-accent border-1.5 border-ink flex items-center justify-center font-serif text-ink font-bold text-lg shadow-[1.5px_1.5px_0px_#111110] group-hover:translate-x-[-1px] group-hover:translate-y-[-1px] transition-transform">
+              B
             </div>
-            <span className="font-display font-bold text-lg tracking-tight bg-gradient-to-r from-white via-slate-100 to-slate-400 bg-clip-text text-transparent">
+            <span className="font-serif font-bold text-2xl tracking-tight text-ink">
               BoardCollab
             </span>
           </div>
@@ -118,59 +123,59 @@ export const Navbar: React.FC<NavbarProps> = ({
 
       {/* Center: Invite Code (if inside board) */}
       {isBoard && roomCode && (
-        <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/5 border border-white/10">
-          <span className="text-[11px] text-slate-400 uppercase font-mono tracking-wider">
+        <div className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-md bg-paper-card border border-border-paper">
+          <span className="text-[11px] text-ink-muted uppercase font-mono tracking-wider">
             CODE:
           </span>
-          <span className="text-xs font-mono font-bold text-brand-300 tracking-wider">
+          <span className="text-xs font-mono font-bold text-ink tracking-wider">
             {roomCode}
           </span>
           <button
             onClick={handleCopyCode}
             title="Copy Room Code"
-            className="p-1 text-slate-400 hover:text-white transition-colors"
+            className="p-1 text-ink-muted hover:text-ink transition-colors cursor-pointer"
           >
-            {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
           </button>
         </div>
       )}
 
       {/* Right: Actions, Collaborators, Status, Profile */}
-      <div className="flex items-center gap-2">
-        {isBoard && (
+      <div className="flex items-center gap-3">
+        {isBoard ? (
           <>
             {/* Connection Status Pill */}
             <div
               title={isOffline ? 'Offline - Reconnecting...' : 'Connected to Real-Time Hub'}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-white/5 border border-white/10"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono font-medium bg-paper-card border border-border-paper"
             >
               <span
                 className={`w-2 h-2 rounded-full ${
-                  isOffline ? 'bg-amber-400 animate-ping' : 'bg-emerald-400 animate-pulse'
+                  isOffline ? 'bg-amber-500 animate-ping' : 'bg-accent animate-pulse border border-ink/40'
                 }`}
               />
-              <span className="hidden md:inline text-slate-300">
+              <span className="hidden md:inline text-ink-muted">
                 {isOffline ? 'Offline' : 'Live Sync'}
               </span>
             </div>
 
             {/* Collaborator Avatars Stack */}
-            <div className="hidden lg:flex items-center -space-x-2 overflow-hidden px-1">
+            <div className="hidden lg:flex items-center -space-x-1.5 overflow-hidden px-1">
               {collaborators.slice(0, 4).map((c) => (
                 <div
                   key={c.socketId}
                   title={`${c.name}${c.isDrawing ? ' (Drawing)' : ''}`}
-                  className="w-7 h-7 rounded-full border-2 border-slate-900 flex items-center justify-center text-[10px] font-bold text-white shadow-md relative"
-                  style={{ backgroundColor: c.avatarColor || '#6366f1' }}
+                  className="w-7 h-7 rounded-full border border-ink flex items-center justify-center text-[10px] font-bold text-ink shadow-sm relative"
+                  style={{ backgroundColor: c.avatarColor || '#FFE98A' }}
                 >
                   {c.name.charAt(0).toUpperCase()}
                   {c.isDrawing && (
-                    <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-emerald-400 border border-slate-900" />
+                    <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent border border-ink" />
                   )}
                 </div>
               ))}
               {collaborators.length > 4 && (
-                <div className="w-7 h-7 rounded-full bg-slate-800 border-2 border-slate-900 flex items-center justify-center text-[10px] font-bold text-slate-300">
+                <div className="w-7 h-7 rounded-full bg-paper-card border border-ink flex items-center justify-center text-[10px] font-mono font-bold text-ink-muted">
                   +{collaborators.length - 4}
                 </div>
               )}
@@ -181,7 +186,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               <button
                 onClick={() => setShowExportMenu(!showExportMenu)}
                 title="Export Whiteboard"
-                className="px-2.5 py-1.5 rounded-xl text-xs font-semibold bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 flex items-center gap-1.5 transition-colors"
+                className="btn-paper-outline px-2.5 py-1.5 text-xs font-mono"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Export</span>
@@ -190,37 +195,37 @@ export const Navbar: React.FC<NavbarProps> = ({
               {showExportMenu && (
                 <div
                   onMouseLeave={() => setShowExportMenu(false)}
-                  className="absolute right-0 mt-2 w-56 rounded-2xl glass-dropdown border border-white/10 shadow-2xl p-1.5 z-50 flex flex-col gap-0.5"
+                  className="absolute right-0 mt-2 w-52 rounded-md bg-paper-card border border-ink shadow-[3px_4px_0px_#111110] p-1.5 z-50 flex flex-col gap-0.5 font-mono text-xs"
                 >
                   <button
                     onClick={() => {
                       setShowExportMenu(false);
                       onExportPng?.();
                     }}
-                    className="w-full text-left px-3 py-2 rounded-xl text-xs text-slate-200 hover:bg-white/10 transition-colors flex items-center justify-between"
+                    className="w-full text-left px-3 py-2 rounded text-ink hover:bg-paper-muted transition-colors flex items-center justify-between cursor-pointer"
                   >
-                    <span>Instant PNG (Client)</span>
-                    <span className="text-[10px] text-brand-400">Fast</span>
+                    <span>Instant PNG</span>
+                    <span className="text-[10px] text-ink-subtle">Client</span>
                   </button>
                   <button
                     onClick={() => {
                       setShowExportMenu(false);
                       onExportSvg?.();
                     }}
-                    className="w-full text-left px-3 py-2 rounded-xl text-xs text-slate-200 hover:bg-white/10 transition-colors flex items-center justify-between"
+                    className="w-full text-left px-3 py-2 rounded text-ink hover:bg-paper-muted transition-colors flex items-center justify-between cursor-pointer"
                   >
                     <span>Vector SVG</span>
-                    <span className="text-[10px] text-purple-400">Scalable</span>
+                    <span className="text-[10px] text-ink-subtle">Scalable</span>
                   </button>
                   <button
                     onClick={() => {
                       setShowExportMenu(false);
                       onExportServerPng?.();
                     }}
-                    className="w-full text-left px-3 py-2 rounded-xl text-xs text-slate-200 hover:bg-white/10 transition-colors flex items-center justify-between"
+                    className="w-full text-left px-3 py-2 rounded text-ink hover:bg-paper-muted transition-colors flex items-center justify-between cursor-pointer"
                   >
-                    <span>High-Res PNG (Server)</span>
-                    <span className="text-[10px] text-emerald-400">node-canvas</span>
+                    <span>High-Res PNG</span>
+                    <span className="text-[10px] text-accent-ink font-semibold">Server</span>
                   </button>
                 </div>
               )}
@@ -230,29 +235,44 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={handleShare}
               title="Copy Board Link"
-              className="p-1.5 sm:px-3 sm:py-1.5 rounded-xl text-xs font-semibold bg-brand-500 hover:bg-brand-600 text-white shadow-lg shadow-brand-500/25 flex items-center gap-1.5 transition-all"
+              className="btn-paper-accent px-3 py-1.5 text-xs font-mono"
             >
               <Share2 className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Share</span>
             </button>
           </>
+        ) : (
+          <nav className="flex items-center gap-6">
+            <button
+              onClick={() => navigate('/login')}
+              className="text-sm font-medium text-ink-muted hover:text-ink transition-colors cursor-pointer"
+            >
+              Sign In
+            </button>
+            <button
+              onClick={() => navigate('/register')}
+              className="btn-paper-primary px-3.5 py-1.5 text-xs font-medium cursor-pointer"
+            >
+              Try Canvas
+            </button>
+          </nav>
         )}
 
         {/* Theme Toggle */}
         <button
           onClick={toggleTheme}
-          title="Toggle Theme"
-          className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 transition-colors"
+          title="Toggle Warm Light / Studio Charcoal"
+          className="p-1.5 rounded-md text-ink-muted hover:text-ink hover:bg-paper-muted border border-transparent hover:border-border-paper transition-all cursor-pointer"
         >
-          {isDark ? <Sun className="w-4 h-4 text-amber-300" /> : <Moon className="w-4 h-4 text-slate-300" />}
+          {isDark ? <Sun className="w-4 h-4 text-accent" /> : <Moon className="w-4 h-4 text-ink-muted" />}
         </button>
 
         {/* User Profile / Logout */}
-        {user ? (
+        {user && (
           <div className="flex items-center gap-2 pl-1">
             <div
-              className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white shadow-md"
-              style={{ backgroundColor: user.avatarColor || '#6366f1' }}
+              className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-ink border border-ink shadow-sm"
+              style={{ backgroundColor: user.avatarColor || '#FFE98A' }}
               title={user.name}
             >
               {user.name.charAt(0).toUpperCase()}
@@ -260,18 +280,11 @@ export const Navbar: React.FC<NavbarProps> = ({
             <button
               onClick={handleLogout}
               title="Logout"
-              className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-white/5 transition-colors"
+              className="p-1.5 rounded-md text-ink-muted hover:text-rose-600 hover:bg-paper-muted transition-colors cursor-pointer"
             >
               <LogOut className="w-4 h-4" />
             </button>
           </div>
-        ) : (
-          <button
-            onClick={() => navigate('/login')}
-            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold bg-brand-500 hover:bg-brand-600 text-white shadow-md transition-all"
-          >
-            Sign In
-          </button>
         )}
       </div>
     </header>

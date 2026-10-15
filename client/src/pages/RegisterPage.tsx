@@ -1,7 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Sparkles, User, Mail, Lock, ArrowRight, Loader2, AlertCircle, Check } from 'lucide-react';
+import { User, Mail, Lock, ArrowRight, Loader2, AlertCircle, Check } from 'lucide-react';
 import { useAppDispatch } from '../store';
 import { setAuth } from '../store/authSlice';
 import api from '../lib/api';
@@ -13,188 +13,268 @@ export const RegisterPage: React.FC = () => {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Compute password strength meter
-  const passwordStrength = useMemo(() => {
-    if (!password) return { score: 0, label: 'Empty', color: 'bg-slate-700' };
+  // Dynamic Password Strength Calculation (0 to 3)
+  const getPasswordStrength = (pass: string) => {
+    if (!pass) return 0;
     let score = 0;
-    if (password.length >= 6) score++;
-    if (password.length >= 10) score++;
-    if (/[A-Z]/.test(password)) score++;
-    if (/[0-9]/.test(password)) score++;
-    if (/[^A-Za-z0-9]/.test(password)) score++;
+    if (pass.length >= 6) score++;
+    if (pass.length >= 10) score++;
+    if (/[A-Z]/.test(pass) && /[0-9]/.test(pass)) score++;
+    return score;
+  };
 
-    if (score <= 2) return { score: 33, label: 'Weak', color: 'bg-rose-500' };
-    if (score <= 3) return { score: 66, label: 'Fair', color: 'bg-amber-500' };
-    return { score: 100, label: 'Strong', color: 'bg-emerald-500' };
-  }, [password]);
+  const strength = getPasswordStrength(password);
+  const strengthLabels = ['Too short', 'Basic', 'Good', 'Bulletproof'];
+  const strengthColors = ['#E53E3E', '#ED8936', '#319795', '#D4FF3A'];
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !email || !password) {
-      setError('Please fill in all required fields');
-      return;
-    }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters long');
-      return;
-    }
-
-    setLoading(true);
     setError(null);
+    setIsLoading(true);
 
     try {
-      const res = await api.post('/auth/register', { name, email, password });
-      dispatch(setAuth({ user: res.data.user, accessToken: res.data.accessToken }));
+      const response = await api.post('/auth/register', {
+        name,
+        email,
+        password
+      });
+
+      const { user, accessToken } = response.data;
+      dispatch(setAuth({ user, accessToken }));
       navigate('/dashboard');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Registration failed. Please try again.');
+      setError(
+        err.response?.data?.message ||
+        err.response?.data?.errors?.[0]?.message ||
+        'Failed to create account. Please try again.'
+      );
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen aurora-bg flex items-center justify-center p-4 relative overflow-hidden">
-      {/* Floating Ambient Glows */}
-      <motion.div
-        animate={{
-          x: [0, 40, 0],
-          y: [0, -30, 0],
-          scale: [1, 1.1, 1]
-        }}
-        transition={{ duration: 11, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute top-1/3 right-12 w-80 h-80 rounded-full bg-accent-500/15 blur-3xl pointer-events-none"
-      />
-      <motion.div
-        animate={{
-          x: [0, -40, 0],
-          y: [0, 30, 0],
-          scale: [1, 1.1, 1]
-        }}
-        transition={{ duration: 13, repeat: Infinity, ease: 'easeInOut' }}
-        className="absolute bottom-1/3 left-12 w-80 h-80 rounded-full bg-brand-500/15 blur-3xl pointer-events-none"
-      />
-
-      <div className="w-full max-w-md relative z-10">
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-3xl glass-panel border border-white/10 dark:border-white/10 p-8 shadow-2xl backdrop-blur-2xl"
-        >
-          {/* Header */}
-          <div className="text-center mb-8">
-            <div
-              onClick={() => navigate('/')}
-              className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-tr from-brand-500 to-accent-500 shadow-xl shadow-brand-500/25 mb-4 cursor-pointer"
-            >
-              <Sparkles className="w-6 h-6 text-white" />
+    <div className="min-h-screen bg-paper text-ink paper-grid paper-grain flex selection:bg-accent selection:text-ink">
+      {/* Left Column: Studio Paper Form */}
+      <div className="w-full lg:w-1/2 flex flex-col justify-between p-6 sm:p-12 lg:p-16 z-10">
+        {/* Top: Logo & Back Link */}
+        <div className="flex items-center justify-between">
+          <div
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2.5 cursor-pointer group"
+          >
+            <div className="w-8 h-8 rounded-sm bg-accent border-1.5 border-ink flex items-center justify-center font-serif text-ink font-bold text-lg shadow-[2px_2px_0px_#111110] group-hover:translate-x-[-1px] group-hover:translate-y-[-1px] transition-transform">
+              B
             </div>
-            <h1 className="font-display font-extrabold text-2xl text-white">
-              Create Your Account
-            </h1>
-            <p className="text-sm text-slate-400 mt-1">
-              Start building collaborative whiteboards in seconds
-            </p>
+            <span className="font-serif font-bold text-2xl tracking-tight text-ink">
+              BoardCollab
+            </span>
           </div>
 
-          {error && (
-            <div className="mb-6 p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{error}</span>
-            </div>
-          )}
+          <Link
+            to="/login"
+            className="text-xs font-mono text-ink-muted hover:text-ink transition-colors"
+          >
+            Sign in instead &rarr;
+          </Link>
+        </div>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Full Name
-              </label>
-              <div className="relative">
-                <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  required
-                  placeholder="Ada Lovelace"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
-                />
-              </div>
-            </div>
+        {/* Center: Main Form */}
+        <div className="max-w-md w-full mx-auto my-auto py-8">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4 }}
+          >
+            <h1 className="font-serif text-3xl sm:text-4xl text-ink font-bold tracking-tight">
+              Create your account.
+            </h1>
+            <p className="text-sm text-ink-muted mt-2">
+              Start sketching with your team. Zero paywalls, sub-100ms sync.
+            </p>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Email Address
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="email"
-                  required
-                  placeholder="ada@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
-                />
-              </div>
-            </div>
+            {/* Error Notice with Shake */}
+            {error && (
+              <motion.div
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: [0, -8, 8, -6, 6, 0] }}
+                transition={{ duration: 0.4 }}
+                className="mt-6 p-3 rounded-md bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-900 text-rose-800 dark:text-rose-300 text-xs flex items-center gap-2"
+              >
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{error}</span>
+              </motion.div>
+            )}
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Password
-              </label>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                <input
-                  type="password"
-                  required
-                  placeholder="At least 6 characters"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-brand-500 focus:ring-1 focus:ring-brand-500 transition-all"
-                />
+            <form onSubmit={handleSubmit} className="mt-8 flex flex-col gap-4">
+              {/* Full Name */}
+              <div>
+                <label className="block text-xs font-mono font-medium text-ink-muted mb-1.5">
+                  FULL NAME
+                </label>
+                <div className="relative">
+                  <User className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ada Lovelace"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-md bg-paper-card border border-border-paper text-ink placeholder:text-ink-subtle text-sm focus:outline-none focus:border-ink transition-all shadow-paper-sm"
+                  />
+                </div>
               </div>
 
-              {/* Password Strength Meter */}
-              {password && (
-                <div className="mt-2 flex flex-col gap-1">
-                  <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full transition-all duration-300 ${passwordStrength.color}`}
-                      style={{ width: `${passwordStrength.score}%` }}
+              {/* Email Address */}
+              <div>
+                <label className="block text-xs font-mono font-medium text-ink-muted mb-1.5">
+                  EMAIL ADDRESS
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle" />
+                  <input
+                    type="email"
+                    required
+                    placeholder="ada@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-md bg-paper-card border border-border-paper text-ink placeholder:text-ink-subtle text-sm focus:outline-none focus:border-ink transition-all shadow-paper-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-mono font-medium text-ink-muted">
+                    PASSWORD
+                  </label>
+                  {password && (
+                    <span
+                      className="text-[11px] font-mono font-medium"
+                      style={{ color: strengthColors[strength] }}
+                    >
+                      {strengthLabels[strength]}
+                    </span>
+                  )}
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle" />
+                  <input
+                    type="password"
+                    required
+                    placeholder="At least 6 characters"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 rounded-md bg-paper-card border border-border-paper text-ink placeholder:text-ink-subtle text-sm focus:outline-none focus:border-ink transition-all shadow-paper-sm"
+                  />
+                </div>
+
+                {/* Hand-drawn Password Strength Underline */}
+                {password && (
+                  <div className="mt-2 h-1.5 w-full bg-paper-muted rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full rounded-full transition-all duration-300"
+                      style={{
+                        width: `${Math.min(100, Math.max(15, (strength / 3) * 100))}%`,
+                        backgroundColor: strengthColors[strength]
+                      }}
                     />
                   </div>
-                  <span className="text-[10px] text-slate-400 text-right">
-                    Strength: <span className="font-semibold text-slate-300">{passwordStrength.label}</span>
-                  </span>
-                </div>
-              )}
+                )}
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={isLoading}
+                className="mt-3 btn-paper-accent w-full py-3 text-sm flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin text-ink" />
+                    <span>Creating workspace...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Create Account</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="mt-8 pt-6 border-t border-border-paper text-center">
+              <span className="text-xs text-ink-muted">
+                Already have an account?{' '}
+                <Link to="/login" className="font-semibold text-ink hover:underline">
+                  Sign In
+                </Link>
+              </span>
             </div>
+          </motion.div>
+        </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="mt-2 w-full py-3.5 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-semibold text-sm shadow-xl shadow-brand-500/25 flex items-center justify-center gap-2 transition-all hover:scale-[1.01] active:scale-[0.99]"
-            >
-              {loading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <>
-                  <span>Create Account</span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
+        {/* Bottom Note */}
+        <div className="text-xs font-mono text-ink-subtle">
+          BoardCollab &copy; 2026 • Studio Paper Edition
+        </div>
+      </div>
 
-          <div className="mt-8 text-center text-xs text-slate-400">
-            Already have an account?{' '}
-            <Link to="/login" className="text-brand-400 hover:text-brand-300 font-semibold underline underline-offset-4">
-              Sign In
-            </Link>
+      {/* Right Column: Live Looping Paper Board Animation (Desktop) */}
+      <div className="hidden lg:flex w-1/2 bg-paper-card border-l border-border-paper relative overflow-hidden flex-col items-center justify-center p-12">
+        <div className="absolute inset-0 paper-grid opacity-70 pointer-events-none" />
+
+        {/* Floating Paper Preview Card */}
+        <motion.div
+          animate={{ y: [0, -6, 0] }}
+          transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
+          className="relative z-10 max-w-md w-full bg-paper border border-ink p-6 rounded-md shadow-[4px_5px_0px_#111110]"
+        >
+          {/* Top Tape Strip */}
+          <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-24 h-5 bg-[#FFE98A]/80 border border-black/10 rotate-[-1.5deg] shadow-xs" />
+
+          <div className="flex items-center justify-between pb-3 mb-4 border-b border-border-paper">
+            <span className="font-mono text-xs font-semibold text-ink-muted uppercase">
+              Sprint Kickoff / Architecture
+            </span>
+            <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
+          </div>
+
+          <div className="space-y-3 font-mono text-xs text-ink-muted">
+            <div className="flex items-center gap-2">
+              <span className="text-emerald-600 font-bold">&#10003;</span>
+              <span className="text-ink">LWW-CRDT Conflict-Free Engine</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-emerald-600 font-bold">&#10003;</span>
+              <span className="text-ink">Per-user isolated undo/redo</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-emerald-600 font-bold">&#10003;</span>
+              <span className="text-ink">Sub-100ms multi-region sync</span>
+            </div>
+          </div>
+
+          {/* Simulated Collaborator Cursors inside card */}
+          <div className="mt-6 pt-4 border-t border-border-paper flex items-center justify-between">
+            <div className="flex items-center -space-x-1.5">
+              <div className="w-6 h-6 rounded-full bg-[#FFE98A] border border-ink flex items-center justify-center text-[10px] font-bold text-ink">
+                M
+              </div>
+              <div className="w-6 h-6 rounded-full bg-[#FFC7A8] border border-ink flex items-center justify-center text-[10px] font-bold text-ink">
+                L
+              </div>
+              <div className="w-6 h-6 rounded-full bg-[#BFE3FF] border border-ink flex items-center justify-center text-[10px] font-bold text-ink">
+                E
+              </div>
+            </div>
+            <span className="text-[11px] font-mono text-ink-subtle">
+              3 active peers
+            </span>
           </div>
         </motion.div>
       </div>
