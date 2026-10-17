@@ -39,11 +39,11 @@ export const OfflineBanner: React.FC = () => {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -40 }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="fixed top-16 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-4 py-2 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-200 backdrop-blur-xl shadow-2xl text-xs font-semibold"
+          className="fixed top-20 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-4 py-2 rounded-md bg-butter border border-ink text-ink shadow-[3px_4px_0px_#111110] text-xs font-mono font-medium"
         >
-          <WifiOff className="w-4 h-4 text-amber-400 animate-pulse" />
-          <span>Offline mode — Your changes are saved locally and will auto-sync on reconnect</span>
-          <RefreshCw className="w-3.5 h-3.5 text-amber-300 animate-spin" />
+          <WifiOff className="w-4 h-4 text-ink" />
+          <span>Offline mode — Changes saved locally and will auto-sync on reconnect</span>
+          <RefreshCw className="w-3.5 h-3.5 text-ink animate-spin" />
         </motion.div>
       )}
     </AnimatePresence>

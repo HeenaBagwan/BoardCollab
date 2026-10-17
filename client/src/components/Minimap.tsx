@@ -45,10 +45,10 @@ export const Minimap: React.FC<MinimapProps> = ({ stagePos, stageScale }) => {
     <div
       onClick={handleMinimapClick}
       title="Click to jump canvas position"
-      className="hidden md:block fixed bottom-6 right-6 z-30 rounded-xl glass-panel border border-white/10 dark:border-white/10 p-1.5 shadow-2xl cursor-crosshair overflow-hidden"
-      style={{ width: `${MAP_WIDTH + 12}px`, height: `${MAP_HEIGHT + 12}px` }}
+      className="hidden md:block fixed bottom-6 right-6 z-30 rounded-lg bg-paper-card border border-ink p-1.5 shadow-[3px_3px_0px_#111110] cursor-crosshair overflow-hidden group"
+      style={{ width: `${MAP_WIDTH + 14}px`, height: `${MAP_HEIGHT + 14}px` }}
     >
-      <div className="relative w-full h-full bg-slate-900/80 rounded-lg overflow-hidden border border-white/5">
+      <div className="relative w-full h-full bg-paper-muted rounded overflow-hidden border border-border-paper paper-grid">
         {/* Simplified element markers */}
         {elements.slice(0, 100).map((el) => {
           const x = Number(el.props.x || el.props.points?.[0] || 0);
@@ -61,7 +61,7 @@ export const Minimap: React.FC<MinimapProps> = ({ stagePos, stageScale }) => {
           return (
             <div
               key={el.id}
-              className="absolute w-1.5 h-1.5 rounded-full bg-brand-400/80 -translate-x-1/2 -translate-y-1/2"
+              className="absolute w-1.5 h-1.5 rounded-sm bg-ink/75 -translate-x-1/2 -translate-y-1/2"
               style={{ left: `${mx}px`, top: `${my}px` }}
             />
           );
@@ -69,7 +69,7 @@ export const Minimap: React.FC<MinimapProps> = ({ stagePos, stageScale }) => {
 
         {/* Current visible viewport highlight box */}
         <div
-          className="absolute border border-brand-400 bg-brand-500/15 rounded pointer-events-none transition-all duration-75"
+          className="absolute border-1.5 border-ink bg-accent/30 rounded-xs pointer-events-none transition-all duration-75 shadow-sm"
           style={{
             left: `${Math.max(0, viewX)}px`,
             top: `${Math.max(0, viewY)}px`,
@@ -77,6 +77,11 @@ export const Minimap: React.FC<MinimapProps> = ({ stagePos, stageScale }) => {
             height: `${Math.min(MAP_HEIGHT, viewHeight)}px`
           }}
         />
+
+        {/* Studio Paper tiny corner badge */}
+        <span className="absolute bottom-1 right-1 px-1 py-0.5 rounded text-[8px] font-mono font-bold tracking-wider text-ink-muted bg-paper-card/90 border border-border-paper select-none">
+          NAV
+        </span>
       </div>
     </div>
   );

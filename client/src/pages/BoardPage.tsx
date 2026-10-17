@@ -344,7 +344,7 @@ export const BoardPage: React.FC = () => {
   };
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-surface-900 select-none">
+    <div className="relative w-screen h-screen overflow-hidden bg-paper text-ink paper-grain select-none">
       {/* Top Navbar */}
       <Navbar
         isBoard
@@ -409,8 +409,9 @@ export const BoardPage: React.FC = () => {
 
       {/* Toast Notification */}
       {toastMessage && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full glass-dropdown border border-white/10 text-white text-xs font-semibold shadow-2xl animate-fade-in">
-          {toastMessage}
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-md bg-paper-card border border-ink text-ink text-xs font-mono font-semibold shadow-[3px_4px_0px_#111110] animate-fade-in flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-accent border border-ink" />
+          <span>{toastMessage}</span>
         </div>
       )}
     </div>

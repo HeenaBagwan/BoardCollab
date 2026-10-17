@@ -480,7 +480,7 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
 
   return (
     <div
-      className={`relative w-full h-screen overflow-hidden canvas-grid ${
+      className={`relative w-full h-screen overflow-hidden paper-grid ${
         isSpacePressed || isPanning
           ? 'cursor-grab active:cursor-grabbing'
           : activeTool === 'pen'

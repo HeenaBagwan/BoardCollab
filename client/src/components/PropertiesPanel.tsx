@@ -9,16 +9,16 @@ interface PropertiesPanelProps {
 }
 
 const PRESET_COLORS = [
-  '#6366f1', // Indigo
-  '#8b5cf6', // Violet
-  '#ec4899', // Pink
-  '#f43f5e', // Rose
-  '#f97316', // Orange
-  '#eab308', // Amber
-  '#10b981', // Emerald
-  '#06b6d4', // Cyan
-  '#f8fafc', // Light
-  '#0f172a'  // Dark
+  '#111110', // Deep Ink
+  '#D4FF3A', // Acid Lime
+  '#FFE98A', // Butter
+  '#FFC7A8', // Peach
+  '#BFE3FF', // Sky
+  '#BDF2D0', // Mint
+  '#E05A47', // Terracotta
+  '#7C3AED', // Deep Violet
+  '#FAF8F4', // Pure Paper
+  '#575653'  // Muted Ink
 ];
 
 const STROKE_WIDTHS = [2, 4, 8, 12];
@@ -37,20 +37,20 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ isOpen, onClos
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 15, scale: 0.95 }}
           transition={{ duration: 0.2 }}
-          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 p-4 rounded-2xl glass-panel shadow-2xl border border-white/10 dark:border-white/10 backdrop-blur-2xl flex flex-col gap-3 min-w-[320px]"
+          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 p-4 rounded-lg bg-paper-card shadow-[4px_5px_0px_#111110] border border-ink flex flex-col gap-3.5 min-w-[320px]"
         >
           {/* Stroke Color */}
           <div>
-            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            <div className="text-[11px] font-mono font-bold text-ink-muted uppercase tracking-wider mb-2">
               Stroke Color
             </div>
-            <div className="flex items-center gap-1.5 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
               {PRESET_COLORS.map((c) => (
                 <button
                   key={c}
                   onClick={() => dispatch(setStrokeColor(c))}
-                  className={`w-6 h-6 rounded-full transition-transform border border-white/20 ${
-                    strokeColor === c ? 'scale-125 ring-2 ring-brand-400 ring-offset-2 ring-offset-slate-900' : 'hover:scale-110'
+                  className={`w-6 h-6 rounded-full transition-transform border border-ink/40 cursor-pointer ${
+                    strokeColor === c ? 'scale-125 ring-2 ring-ink ring-offset-2 ring-offset-paper' : 'hover:scale-110'
                   }`}
                   style={{ backgroundColor: c }}
                 />
@@ -59,7 +59,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ isOpen, onClos
                 type="color"
                 value={strokeColor}
                 onChange={(e) => dispatch(setStrokeColor(e.target.value))}
-                className="w-6 h-6 rounded-full border border-white/20 cursor-pointer bg-transparent p-0 overflow-hidden"
+                className="w-6 h-6 rounded-full border border-ink/40 cursor-pointer bg-transparent p-0 overflow-hidden"
                 title="Custom color"
               />
             </div>
@@ -67,7 +67,7 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ isOpen, onClos
 
           {/* Stroke Width */}
           <div>
-            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            <div className="text-[11px] font-mono font-bold text-ink-muted uppercase tracking-wider mb-2">
               Stroke Width ({strokeWidth}px)
             </div>
             <div className="flex items-center gap-2">
@@ -75,10 +75,10 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ isOpen, onClos
                 <button
                   key={w}
                   onClick={() => dispatch(setStrokeWidth(w))}
-                  className={`flex-1 py-1.5 rounded-lg text-xs font-semibold flex items-center justify-center border transition-all ${
+                  className={`flex-1 py-1.5 rounded text-xs font-mono font-bold flex items-center justify-center border transition-all cursor-pointer ${
                     strokeWidth === w
-                      ? 'bg-brand-500/20 text-brand-400 border-brand-500/40'
-                      : 'bg-white/5 text-slate-400 border-transparent hover:text-white hover:bg-white/10'
+                      ? 'bg-accent text-ink border-ink shadow-[1.5px_1.5px_0px_#111110]'
+                      : 'bg-paper-muted text-ink-muted border-border-paper hover:text-ink hover:border-ink'
                   }`}
                 >
                   <span
@@ -92,36 +92,36 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ isOpen, onClos
 
           {/* Fill Color */}
           <div>
-            <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2">
+            <div className="text-[11px] font-mono font-bold text-ink-muted uppercase tracking-wider mb-2">
               Fill Mode
             </div>
             <div className="flex items-center gap-2">
               <button
                 onClick={() => dispatch(setFillColor('transparent'))}
-                className={`flex-1 py-1 px-2 text-xs rounded-lg border transition-all ${
+                className={`flex-1 py-1.5 px-2 text-xs font-mono font-semibold rounded border transition-all cursor-pointer ${
                   fillColor === 'transparent'
-                    ? 'bg-brand-500/20 text-brand-400 border-brand-500/40'
-                    : 'bg-white/5 text-slate-400 border-transparent hover:text-white'
+                    ? 'bg-accent text-ink border-ink shadow-[1.5px_1.5px_0px_#111110]'
+                    : 'bg-paper-muted text-ink-muted border-border-paper hover:text-ink hover:border-ink'
                 }`}
               >
                 None
               </button>
               <button
                 onClick={() => dispatch(setFillColor(strokeColor))}
-                className={`flex-1 py-1 px-2 text-xs rounded-lg border transition-all ${
+                className={`flex-1 py-1.5 px-2 text-xs font-mono font-semibold rounded border transition-all cursor-pointer ${
                   fillColor === strokeColor
-                    ? 'bg-brand-500/20 text-brand-400 border-brand-500/40'
-                    : 'bg-white/5 text-slate-400 border-transparent hover:text-white'
+                    ? 'bg-accent text-ink border-ink shadow-[1.5px_1.5px_0px_#111110]'
+                    : 'bg-paper-muted text-ink-muted border-border-paper hover:text-ink hover:border-ink'
                 }`}
               >
                 Solid
               </button>
               <button
                 onClick={() => dispatch(setFillColor(`${strokeColor}33`))}
-                className={`flex-1 py-1 px-2 text-xs rounded-lg border transition-all ${
+                className={`flex-1 py-1.5 px-2 text-xs font-mono font-semibold rounded border transition-all cursor-pointer ${
                   fillColor.endsWith('33')
-                    ? 'bg-brand-500/20 text-brand-400 border-brand-500/40'
-                    : 'bg-white/5 text-slate-400 border-transparent hover:text-white'
+                    ? 'bg-accent text-ink border-ink shadow-[1.5px_1.5px_0px_#111110]'
+                    : 'bg-paper-muted text-ink-muted border-border-paper hover:text-ink hover:border-ink'
                 }`}
               >
                 20% Tint

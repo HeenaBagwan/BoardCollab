@@ -53,9 +53,9 @@ export const ShapeRenderer: React.FC<ShapeRendererProps> = React.memo(
             listening={isSelectTool}
             onClick={handleClick}
             onTap={handleClick}
-            shadowColor="#6366f1"
-            shadowBlur={isSelected ? 10 : 0}
-            shadowOpacity={isSelected ? 0.6 : 0}
+            shadowColor="#111110"
+            shadowBlur={isSelected ? 6 : 0}
+            shadowOpacity={isSelected ? 0.4 : 0}
           />
         );
       }
@@ -66,7 +66,7 @@ export const ShapeRenderer: React.FC<ShapeRendererProps> = React.memo(
         const width = Number(props.width || 100);
         const height = Number(props.height || 100);
         const fill = props.fill || 'transparent';
-        const stroke = props.stroke || '#6366f1';
+        const stroke = props.stroke || '#111110';
         const strokeWidth = Number(props.strokeWidth || 2);
         const cornerRadius = Number(props.cornerRadius || 8);
 
@@ -78,16 +78,16 @@ export const ShapeRenderer: React.FC<ShapeRendererProps> = React.memo(
             width={width}
             height={height}
             fill={fill === 'transparent' ? 'rgba(0,0,0,0.01)' : fill}
-            stroke={isSelected ? '#38bdf8' : stroke}
+            stroke={isSelected ? '#111110' : stroke}
             strokeWidth={isSelected ? strokeWidth + 2 : strokeWidth}
             cornerRadius={cornerRadius}
             draggable={isSelectTool && isSelected}
             onDragEnd={handleDragEnd}
             onClick={handleClick}
             onTap={handleClick}
-            shadowColor={isSelected ? '#38bdf8' : '#000000'}
-            shadowBlur={isSelected ? 14 : 4}
-            shadowOpacity={isSelected ? 0.7 : 0.2}
+            shadowColor="#111110"
+            shadowBlur={isSelected ? 8 : 2}
+            shadowOpacity={isSelected ? 0.35 : 0.08}
           />
         );
       }
@@ -97,7 +97,7 @@ export const ShapeRenderer: React.FC<ShapeRendererProps> = React.memo(
         const y = Number(props.y || 0);
         const radius = Math.max(2, Number(props.radius || 40));
         const fill = props.fill || 'transparent';
-        const stroke = props.stroke || '#6366f1';
+        const stroke = props.stroke || '#111110';
         const strokeWidth = Number(props.strokeWidth || 2);
 
         return (
@@ -107,15 +107,15 @@ export const ShapeRenderer: React.FC<ShapeRendererProps> = React.memo(
             y={y}
             radius={radius}
             fill={fill === 'transparent' ? 'rgba(0,0,0,0.01)' : fill}
-            stroke={isSelected ? '#38bdf8' : stroke}
+            stroke={isSelected ? '#111110' : stroke}
             strokeWidth={isSelected ? strokeWidth + 2 : strokeWidth}
             draggable={isSelectTool && isSelected}
             onDragEnd={handleDragEnd}
             onClick={handleClick}
             onTap={handleClick}
-            shadowColor={isSelected ? '#38bdf8' : '#000000'}
-            shadowBlur={isSelected ? 14 : 4}
-            shadowOpacity={isSelected ? 0.7 : 0.2}
+            shadowColor="#111110"
+            shadowBlur={isSelected ? 8 : 2}
+            shadowOpacity={isSelected ? 0.35 : 0.08}
           />
         );
       }
@@ -125,8 +125,8 @@ export const ShapeRenderer: React.FC<ShapeRendererProps> = React.memo(
         const y = Number(props.y || 0);
         const text = String(props.text || 'Double click to edit');
         const fontSize = Number(props.fontSize || 20);
-        const fontFamily = props.fontFamily || 'Plus Jakarta Sans';
-        const fill = props.fill || '#f8fafc';
+        const fontFamily = props.fontFamily || 'Geist';
+        const fill = props.fill || '#111110';
 
         return (
           <Text
@@ -136,14 +136,14 @@ export const ShapeRenderer: React.FC<ShapeRendererProps> = React.memo(
             text={text}
             fontSize={fontSize}
             fontFamily={fontFamily}
-            fill={isSelected ? '#38bdf8' : fill}
+            fill={isSelected ? '#111110' : fill}
             draggable={isSelectTool && isSelected}
             onDragEnd={handleDragEnd}
             onClick={handleClick}
             onTap={handleClick}
-            shadowColor={isSelected ? '#38bdf8' : 'transparent'}
-            shadowBlur={isSelected ? 10 : 0}
-            shadowOpacity={0.6}
+            shadowColor="#111110"
+            shadowBlur={isSelected ? 6 : 0}
+            shadowOpacity={isSelected ? 0.35 : 0}
           />
         );
       }

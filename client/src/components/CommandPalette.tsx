@@ -193,26 +193,26 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 bg-black/60 backdrop-blur-md">
+        <div className="fixed inset-0 z-50 flex items-start justify-center pt-24 px-4 bg-ink/40 backdrop-blur-xs">
           <motion.div
             initial={{ opacity: 0, scale: 0.95, y: -20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: -20 }}
             transition={{ duration: 0.15 }}
-            className="w-full max-w-xl rounded-2xl glass-panel border border-white/10 dark:border-white/10 shadow-2xl overflow-hidden flex flex-col"
+            className="w-full max-w-xl rounded-xl bg-paper-card border border-ink shadow-[6px_8px_0px_#111110] overflow-hidden flex flex-col"
           >
             {/* Search Input */}
-            <div className="flex items-center gap-3 px-4 py-3.5 border-b border-white/10">
-              <Search className="w-5 h-5 text-slate-400" />
+            <div className="flex items-center gap-3 px-4 py-3.5 border-b border-border-paper">
+              <Search className="w-5 h-5 text-ink-muted" />
               <input
                 autoFocus
                 type="text"
                 placeholder="Type a command or search tools (e.g., 'pen', 'export', 'theme')..."
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                className="w-full bg-transparent text-sm text-white placeholder-slate-400 focus:outline-none"
+                className="w-full bg-transparent text-sm font-mono text-ink placeholder-ink-subtle focus:outline-none"
               />
-              <kbd className="px-2 py-0.5 text-[10px] font-mono text-slate-400 bg-white/10 rounded">
+              <kbd className="px-2 py-0.5 text-[10px] font-mono font-bold text-ink-muted bg-paper-muted border border-border-paper rounded">
                 ESC
               </kbd>
             </div>
@@ -220,7 +220,7 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
             {/* Command List */}
             <div className="max-h-80 overflow-y-auto p-2 flex flex-col gap-1">
               {filtered.length === 0 ? (
-                <div className="py-8 text-center text-sm text-slate-400">
+                <div className="py-8 text-center text-sm font-mono text-ink-muted">
                   No matching commands found
                 </div>
               ) : (
@@ -236,23 +236,23 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
                         onClose();
                       }}
                       onMouseEnter={() => setSelectedIndex(idx)}
-                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-left transition-colors ${
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-left transition-colors cursor-pointer ${
                         isSelected
-                          ? 'bg-brand-500 text-white shadow-md shadow-brand-500/20'
-                          : 'text-slate-300 hover:bg-white/5'
+                          ? 'bg-accent text-ink border border-ink shadow-[1.5px_2px_0px_#111110] font-bold'
+                          : 'text-ink hover:bg-paper-muted border border-transparent font-medium'
                       }`}
                     >
                       <div className="flex items-center gap-3">
-                        <Icon className={`w-4 h-4 ${isSelected ? 'text-white' : 'text-slate-400'}`} />
-                        <span className="text-sm font-medium">{cmd.label}</span>
+                        <Icon className={`w-4 h-4 ${isSelected ? 'text-ink' : 'text-ink-muted'}`} />
+                        <span className="text-sm">{cmd.label}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <span className={`text-[11px] font-medium ${isSelected ? 'text-white/80' : 'text-slate-500'}`}>
+                        <span className={`text-[11px] font-mono ${isSelected ? 'text-ink' : 'text-ink-muted'}`}>
                           {cmd.category}
                         </span>
                         {cmd.shortcut && (
                           <kbd className={`px-1.5 py-0.5 text-[10px] font-mono rounded ${
-                            isSelected ? 'bg-white/20 text-white' : 'bg-white/10 text-slate-400'
+                            isSelected ? 'bg-ink text-paper' : 'bg-paper-muted text-ink-muted border border-border-paper'
                           }`}>
                             {cmd.shortcut}
                           </kbd>

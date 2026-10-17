@@ -57,7 +57,7 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
   const activeTool = useAppSelector((state) => state.canvas.tool);
 
   return (
-    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 p-1.5 rounded-2xl glass-panel shadow-2xl border border-white/10 dark:border-white/10 backdrop-blur-xl">
+    <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex items-center gap-1.5 p-1.5 rounded-lg bg-paper-card border border-ink shadow-[3px_4px_0px_#111110]">
       {/* Tool Selector Buttons with layoutId pill */}
       <div className="flex items-center gap-1">
         {TOOLS.map((tool) => {
@@ -69,20 +69,20 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
               key={tool.type}
               onClick={() => dispatch(setTool(tool.type))}
               title={`${tool.label} (${tool.shortcut})`}
-              className={`relative px-3.5 py-2.5 rounded-xl flex items-center justify-center transition-colors group ${
-                isActive ? 'text-white' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'
+              className={`relative px-3 py-2 rounded-md flex items-center justify-center transition-colors group cursor-pointer ${
+                isActive ? 'text-ink font-bold' : 'text-ink-muted hover:text-ink hover:bg-paper-muted'
               }`}
             >
               {isActive && (
                 <motion.div
                   layoutId="activeToolPill"
-                  className="absolute inset-0 bg-brand-500 rounded-xl shadow-lg shadow-brand-500/30"
+                  className="absolute inset-0 bg-accent rounded-md border border-ink shadow-[1.5px_2px_0px_#111110]"
                   transition={{ type: 'spring', stiffness: 500, damping: 35 }}
                 />
               )}
               <span className="relative z-10 flex items-center gap-1.5">
                 <Icon className="w-4 h-4" />
-                <span className="text-xs font-semibold hidden md:inline">{tool.label}</span>
+                <span className="text-xs font-mono font-bold hidden md:inline">{tool.label}</span>
               </span>
               <span className="sr-only">{tool.label}</span>
             </button>
@@ -90,16 +90,16 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
         })}
       </div>
 
-      <div className="w-[1px] h-6 bg-white/10 mx-1" />
+      <div className="w-[1px] h-6 bg-border-paper mx-1" />
 
       {/* Properties toggle */}
       <button
         onClick={onToggleProperties}
         title="Toggle Properties (Color & Stroke)"
-        className={`p-2.5 rounded-xl transition-all ${
+        className={`p-2 rounded-md transition-all cursor-pointer ${
           isPropertiesOpen
-            ? 'bg-brand-500/20 text-brand-400 border border-brand-500/30'
-            : 'text-slate-400 hover:text-white hover:bg-white/5'
+            ? 'bg-accent/40 text-ink border border-ink shadow-[1px_1.5px_0px_#111110]'
+            : 'text-ink-muted hover:text-ink hover:bg-paper-muted'
         }`}
       >
         <Sliders className="w-4 h-4" />
@@ -111,7 +111,7 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
           onClick={onUndo}
           disabled={!canUndo}
           title="Undo (Ctrl+Z)"
-          className="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+          className="p-2 rounded-md text-ink-muted hover:text-ink hover:bg-paper-muted disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
         >
           <Undo2 className="w-4 h-4" />
         </button>
@@ -119,7 +119,7 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
           onClick={onRedo}
           disabled={!canRedo}
           title="Redo (Ctrl+Shift+Z)"
-          className="p-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+          className="p-2 rounded-md text-ink-muted hover:text-ink hover:bg-paper-muted disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer"
         >
           <Redo2 className="w-4 h-4" />
         </button>
@@ -128,11 +128,11 @@ export const CanvasToolbar: React.FC<CanvasToolbarProps> = ({
       {/* Owner Clear Canvas */}
       {isOwner && (
         <>
-          <div className="w-[1px] h-6 bg-white/10 mx-1" />
+          <div className="w-[1px] h-6 bg-border-paper mx-1" />
           <button
             onClick={onClear}
             title="Clear Entire Canvas (Owner Only)"
-            className="p-2.5 rounded-xl text-rose-400 hover:text-rose-200 hover:bg-rose-500/10 transition-colors"
+            className="p-2 rounded-md text-rose-600 hover:text-rose-800 hover:bg-rose-100/60 transition-colors cursor-pointer"
           >
             <Trash2 className="w-4 h-4" />
           </button>

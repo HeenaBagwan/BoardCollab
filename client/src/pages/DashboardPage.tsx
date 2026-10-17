@@ -16,7 +16,6 @@ import {
 import Navbar from '../components/Navbar';
 import { useAppDispatch, useAppSelector } from '../store';
 import { fetchRooms, createRoom, joinRoomByCode } from '../store/roomSlice';
-import { Room } from '../types';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -28,14 +27,15 @@ export const DashboardPage: React.FC = () => {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isJoinModalOpen, setIsJoinModalOpen] = useState(false);
 
-  // Create room modal fields
+  // New Room Form state
   const [newRoomName, setNewRoomName] = useState('');
   const [newRoomVisibility, setNewRoomVisibility] = useState<'public' | 'private'>('public');
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Join room modal field
+  // Join Room Form state
   const [joinCode, setJoinCode] = useState('');
   const [joinError, setJoinError] = useState<string | null>(null);
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     dispatch(fetchRooms());
@@ -85,32 +85,32 @@ export const DashboardPage: React.FC = () => {
   );
 
   return (
-    <div className="min-h-screen bg-surface-900 text-slate-100 flex flex-col">
+    <div className="min-h-screen bg-paper text-ink paper-grid paper-grain flex flex-col selection:bg-accent selection:text-ink">
       <Navbar />
 
       <main className="flex-1 pt-24 pb-16 px-4 md:px-8 max-w-7xl mx-auto w-full">
         {/* Welcome Header & Action Buttons */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
           <div>
-            <h1 className="font-display font-extrabold text-3xl sm:text-4xl text-white">
+            <h1 className="font-serif font-bold text-4xl sm:text-5xl text-ink tracking-tight">
               Workspaces & Boards
             </h1>
-            <p className="text-sm text-slate-400 mt-1">
-              Welcome back, <span className="text-white font-semibold">{currentUser?.name}</span>. Jump back into an active session.
+            <p className="text-sm font-sans text-ink-muted mt-2">
+              Welcome back, <span className="text-ink font-semibold">{currentUser?.name}</span>. Jump back into an active session.
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => setIsJoinModalOpen(true)}
-              className="px-4 py-2.5 rounded-xl glass-panel hover:bg-white/10 text-slate-200 border border-white/10 text-xs font-semibold flex items-center gap-2 transition-all"
+              className="btn-paper-outline px-4 py-2 text-xs font-mono flex items-center gap-2 cursor-pointer"
             >
-              <Hash className="w-4 h-4 text-brand-400" />
+              <Hash className="w-3.5 h-3.5 text-ink-muted" />
               <span>Join with Code</span>
             </button>
             <button
               onClick={() => setIsCreateModalOpen(true)}
-              className="px-4 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-semibold shadow-lg shadow-brand-500/25 flex items-center gap-2 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              className="btn-paper-accent px-4 py-2 text-xs font-semibold flex items-center gap-2 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Create Board</span>
@@ -120,13 +120,13 @@ export const DashboardPage: React.FC = () => {
 
         {/* Search bar */}
         <div className="relative mb-8 max-w-md">
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-ink-subtle" />
           <input
             type="text"
             placeholder="Search boards by name or code..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-xs focus:outline-none focus:border-brand-500 transition-all"
+            className="w-full pl-10 pr-4 py-2.5 rounded-md bg-paper-card border border-border-paper text-ink placeholder:text-ink-subtle text-xs focus:outline-none focus:border-ink transition-all shadow-paper-sm font-mono"
           />
         </div>
 
@@ -134,24 +134,34 @@ export const DashboardPage: React.FC = () => {
         {isLoading && rooms.length === 0 && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-56 rounded-3xl glass-panel animate-pulse p-6 border border-white/5" />
+              <div
+                key={i}
+                className="h-64 rounded-md bg-paper-card border border-border-paper p-6 animate-pulse flex flex-col justify-between shadow-paper"
+              >
+                <div className="space-y-3">
+                  <div className="h-4 w-20 bg-paper-muted rounded" />
+                  <div className="h-6 w-3/4 bg-paper-muted rounded" />
+                </div>
+                <div className="h-24 bg-paper-muted rounded" />
+                <div className="h-4 w-1/2 bg-paper-muted rounded" />
+              </div>
             ))}
           </div>
         )}
 
         {/* Empty State */}
         {!isLoading && filteredRooms.length === 0 && (
-          <div className="py-20 flex flex-col items-center justify-center text-center rounded-xl bg-paper-card border border-border-paper p-8 shadow-paper">
-            <div className="w-16 h-16 rounded-xl bg-accent/20 border border-ink text-ink flex items-center justify-center mb-4 shadow-[2px_2.5px_0px_#111110]">
+          <div className="py-20 flex flex-col items-center justify-center text-center rounded-md bg-paper-card border border-border-paper p-8 shadow-paper">
+            <div className="w-16 h-16 rounded-md bg-accent border border-ink text-ink flex items-center justify-center mb-4 shadow-[2px_2.5px_0px_#111110]">
               <Layers className="w-7 h-7" />
             </div>
             <h3 className="font-serif font-bold text-2xl text-ink">No whiteboards found</h3>
-            <p className="text-ink-muted text-xs max-w-sm mt-1 mb-6">
+            <p className="text-ink-muted text-xs max-w-sm mt-1.5 mb-6 font-sans">
               Create your first infinite collaborative whiteboard or join an existing session using an invite code.
             </p>
             <button
               onClick={() => setIsCreateModalOpen(true)}
-              className="px-5 py-2.5 rounded-xl bg-brand-500 text-white text-xs font-semibold flex items-center gap-2 shadow-lg shadow-brand-500/20"
+              className="btn-paper-accent px-5 py-2.5 text-xs font-semibold flex items-center gap-2 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Create New Board</span>
@@ -159,61 +169,64 @@ export const DashboardPage: React.FC = () => {
           </div>
         )}
 
-        {/* Room Cards Grid */}
+        {/* Room Cards Grid - Studio Paper Pinned Boards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredRooms.map((room) => (
             <motion.div
               key={room.id}
-              whileHover={{ y: -4 }}
+              whileHover={{ y: -3 }}
               onMouseEnter={handlePrefetchBoard}
               onClick={() => navigate(`/board/${room.id}`)}
-              className="rounded-3xl glass-panel border border-white/10 p-6 flex flex-col justify-between cursor-pointer hover:border-brand-500/40 transition-all shadow-xl group relative overflow-hidden"
+              className="bg-paper-card border border-border-paper p-5 rounded-md flex flex-col justify-between cursor-pointer hover:border-ink transition-all shadow-paper hover:shadow-[3.5px_4.5px_0px_#111110] group relative overflow-visible"
             >
+              {/* Paper Tape Piece */}
+              <div className="absolute -top-2.5 left-6 w-16 h-4 bg-[#FFE98A]/85 border border-black/10 rotate-[-1.5deg] shadow-xs pointer-events-none" />
+
               {/* Top Card Info */}
               <div>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold bg-white/5 border border-white/10 text-slate-300">
+                <div className="flex items-center justify-between mb-2.5 pt-1">
+                  <span className="flex items-center gap-1 px-2 py-0.5 rounded-sm text-[10px] font-mono font-medium bg-paper border border-border-paper text-ink-muted">
                     {room.visibility === 'private' ? (
-                      <Lock className="w-3 h-3 text-amber-400" />
+                      <Lock className="w-3 h-3 text-amber-500" />
                     ) : (
-                      <Globe className="w-3 h-3 text-emerald-400" />
+                      <Globe className="w-3 h-3 text-emerald-600" />
                     )}
                     <span className="capitalize">{room.visibility}</span>
                   </span>
 
-                  <span className="text-[11px] font-mono text-slate-400">
+                  <span className="text-[11px] font-mono text-ink-subtle tracking-wider">
                     {room.roomCode}
                   </span>
                 </div>
 
-                <h3 className="font-display font-bold text-lg text-white group-hover:text-brand-300 transition-colors line-clamp-1">
+                <h3 className="font-serif font-bold text-xl text-ink group-hover:text-ink transition-colors line-clamp-1">
                   {room.name}
                 </h3>
               </div>
 
               {/* Simulated Live SVG Thumbnail Preview */}
-              <div className="my-4 h-24 rounded-2xl bg-slate-950/60 border border-white/5 flex items-center justify-center p-3 overflow-hidden relative canvas-grid">
-                <svg className="w-full h-full opacity-60" viewBox="0 0 100 60">
-                  <rect x="10" y="10" width="30" height="20" rx="4" fill="#6366f1" fillOpacity="0.3" stroke="#6366f1" strokeWidth="1.5" />
-                  <circle cx="70" cy="30" r="15" fill="#a855f7" fillOpacity="0.3" stroke="#a855f7" strokeWidth="1.5" />
-                  <path d="M 20 45 Q 50 35 80 50" fill="none" stroke="#ec4899" strokeWidth="1.5" />
+              <div className="my-4 h-24 rounded-sm bg-paper border border-border-paper flex items-center justify-center p-3 overflow-hidden relative paper-grid">
+                <svg className="w-full h-full opacity-80" viewBox="0 0 100 60">
+                  <rect x="15" y="12" width="28" height="20" rx="2" fill="#FFE98A" stroke="#111110" strokeWidth="1.2" />
+                  <circle cx="68" cy="28" r="14" fill="#BFE3FF" stroke="#111110" strokeWidth="1.2" />
+                  <path d="M 22 44 Q 50 32 78 48" fill="none" stroke="#D4FF3A" strokeWidth="2.5" strokeLinecap="round" />
                 </svg>
               </div>
 
               {/* Bottom Card Meta */}
-              <div className="flex items-center justify-between border-t border-white/10 pt-4 text-[11px] text-slate-400">
+              <div className="flex items-center justify-between border-t border-border-paper pt-3 text-xs font-mono text-ink-muted">
                 <div className="flex items-center gap-3">
                   <span className="flex items-center gap-1">
-                    <Users className="w-3.5 h-3.5 text-slate-400" />
+                    <Users className="w-3.5 h-3.5 text-ink-subtle" />
                     <span>{room.memberCount || 1}</span>
                   </span>
                   <span className="flex items-center gap-1">
-                    <Layers className="w-3.5 h-3.5 text-slate-400" />
+                    <Layers className="w-3.5 h-3.5 text-ink-subtle" />
                     <span>{room.elementCount || 0}</span>
                   </span>
                 </div>
 
-                <div className="flex items-center gap-1.5 font-semibold text-brand-400 group-hover:translate-x-0.5 transition-transform">
+                <div className="flex items-center gap-1 font-semibold text-ink group-hover:translate-x-1 transition-transform">
                   <span>Open</span>
                   <ArrowRight className="w-3.5 h-3.5" />
                 </div>
@@ -226,20 +239,20 @@ export const DashboardPage: React.FC = () => {
       {/* Create Room Modal */}
       <AnimatePresence>
         {isCreateModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md rounded-3xl glass-panel border border-white/10 p-6 shadow-2xl relative"
+              className="w-full max-w-md rounded-md bg-paper-card border border-ink p-6 shadow-[4px_5px_0px_#111110] relative text-ink"
             >
               <div className="flex items-center justify-between mb-6">
-                <h3 className="font-display font-bold text-xl text-white">
+                <h3 className="font-serif font-bold text-2xl text-ink">
                   Create Collaborative Board
                 </h3>
                 <button
                   onClick={() => setIsCreateModalOpen(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-white"
+                  className="p-1 rounded text-ink-muted hover:text-ink cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -247,32 +260,32 @@ export const DashboardPage: React.FC = () => {
 
               <form onSubmit={handleCreateRoom} className="flex flex-col gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                    Board Name
+                  <label className="block text-xs font-mono font-medium text-ink-muted mb-1.5">
+                    BOARD NAME
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g., Sprint Planning Q4"
+                    placeholder="e.g., Sprint Architecture Q4"
                     value={newRoomName}
                     onChange={(e) => setNewRoomName(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-brand-500 transition-all"
+                    className="w-full px-3.5 py-2.5 rounded-md bg-paper border border-border-paper text-ink placeholder:text-ink-subtle text-sm focus:outline-none focus:border-ink transition-all shadow-paper-sm font-sans"
                   />
                 </div>
 
                 {/* Animated Visibility Toggle */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                    Visibility
+                  <label className="block text-xs font-mono font-medium text-ink-muted mb-1.5">
+                    VISIBILITY
                   </label>
-                  <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-white/5 border border-white/10">
+                  <div className="grid grid-cols-2 gap-2 p-1 rounded-md bg-paper border border-border-paper">
                     <button
                       type="button"
                       onClick={() => setNewRoomVisibility('public')}
-                      className={`py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                      className={`py-2 px-3 rounded text-xs font-mono font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                         newRoomVisibility === 'public'
-                          ? 'bg-brand-500 text-white shadow-md'
-                          : 'text-slate-400 hover:text-white'
+                          ? 'bg-accent text-ink border border-ink shadow-[1.5px_2px_0px_#111110]'
+                          : 'text-ink-muted hover:text-ink'
                       }`}
                     >
                       <Globe className="w-3.5 h-3.5" />
@@ -281,10 +294,10 @@ export const DashboardPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => setNewRoomVisibility('private')}
-                      className={`py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all ${
+                      className={`py-2 px-3 rounded text-xs font-mono font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
                         newRoomVisibility === 'private'
-                          ? 'bg-brand-500 text-white shadow-md'
-                          : 'text-slate-400 hover:text-white'
+                          ? 'bg-accent text-ink border border-ink shadow-[1.5px_2px_0px_#111110]'
+                          : 'text-ink-muted hover:text-ink'
                       }`}
                     >
                       <Lock className="w-3.5 h-3.5" />
@@ -293,17 +306,26 @@ export const DashboardPage: React.FC = () => {
                   </div>
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="mt-4 w-full py-3.5 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-semibold text-sm shadow-xl shadow-brand-500/25 flex items-center justify-center gap-2 transition-all"
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <span>Create & Launch Board</span>
-                  )}
-                </button>
+                <div className="mt-4 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsCreateModalOpen(false)}
+                    className="btn-paper-outline flex-1 py-2.5 text-xs font-mono cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="btn-paper-accent flex-1 py-2.5 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-ink" />
+                    ) : (
+                      <span>Launch Board</span>
+                    )}
+                  </button>
+                </div>
               </form>
             </motion.div>
           </div>
@@ -313,35 +335,35 @@ export const DashboardPage: React.FC = () => {
       {/* Join Room by Code Modal */}
       <AnimatePresence>
         {isJoinModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-md rounded-3xl glass-panel border border-white/10 p-6 shadow-2xl relative"
+              className="w-full max-w-md rounded-md bg-paper-card border border-ink p-6 shadow-[4px_5px_0px_#111110] relative text-ink"
             >
               <div className="flex items-center justify-between mb-6">
-                <h3 className="font-display font-bold text-xl text-white">
-                  Join via Invite Code
+                <h3 className="font-serif font-bold text-2xl text-ink">
+                  Join with Code
                 </h3>
                 <button
                   onClick={() => setIsJoinModalOpen(false)}
-                  className="p-1 rounded-lg text-slate-400 hover:text-white"
+                  className="p-1 rounded text-ink-muted hover:text-ink cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               {joinError && (
-                <div className="mb-4 p-3 rounded-xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs">
+                <div className="mb-4 p-3 rounded-md bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-900 text-rose-800 dark:text-rose-300 text-xs font-mono">
                   {joinError}
                 </div>
               )}
 
               <form onSubmit={handleJoinByCode} className="flex flex-col gap-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                    8-Character Invite Code
+                  <label className="block text-xs font-mono font-medium text-ink-muted mb-1.5">
+                    8-CHARACTER INVITE CODE
                   </label>
                   <input
                     type="text"
@@ -350,21 +372,30 @@ export const DashboardPage: React.FC = () => {
                     value={joinCode}
                     onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                     maxLength={12}
-                    className="w-full px-4 py-3 rounded-xl bg-white/5 border border-white/10 text-white placeholder-slate-500 text-sm font-mono tracking-widest uppercase focus:outline-none focus:border-brand-500 transition-all text-center"
+                    className="w-full px-4 py-2.5 rounded-md bg-paper border border-border-paper text-ink placeholder:text-ink-subtle text-sm font-mono tracking-widest uppercase focus:outline-none focus:border-ink transition-all text-center shadow-paper-sm"
                   />
                 </div>
 
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="mt-4 w-full py-3.5 rounded-xl bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white font-semibold text-sm shadow-xl shadow-brand-500/25 flex items-center justify-center gap-2 transition-all"
-                >
-                  {isSubmitting ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <span>Join Workspace</span>
-                  )}
-                </button>
+                <div className="mt-4 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsJoinModalOpen(false)}
+                    className="btn-paper-outline flex-1 py-2.5 text-xs font-mono cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="btn-paper-accent flex-1 py-2.5 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSubmitting ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-ink" />
+                    ) : (
+                      <span>Join Board</span>
+                    )}
+                  </button>
+                </div>
               </form>
             </motion.div>
           </div>

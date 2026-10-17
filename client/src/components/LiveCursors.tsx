@@ -45,18 +45,18 @@ export const LiveCursors: React.FC<LiveCursorsProps> = ({ stagePos, stageScale }
           >
             {/* Cursor Arrow */}
             <MousePointer2
-              className="w-4 h-4 -rotate-45 drop-shadow-md"
-              style={{ color: p.avatarColor || '#6366f1', fill: p.avatarColor || '#6366f1' }}
+              className="w-4 h-4 -rotate-45 filter drop-shadow-[1px_1px_0px_#111110]"
+              style={{ color: '#111110', fill: p.avatarColor || '#FFE98A' }}
             />
 
             {/* User Name Tag */}
             <div
-              className="px-2 py-0.5 rounded-full text-[11px] font-semibold text-white shadow-lg flex items-center gap-1.5 whitespace-nowrap"
-              style={{ backgroundColor: p.avatarColor || '#6366f1' }}
+              className="px-2 py-0.5 rounded text-[11px] font-mono font-bold text-ink border border-ink shadow-[1.5px_2px_0px_#111110] flex items-center gap-1.5 whitespace-nowrap"
+              style={{ backgroundColor: p.avatarColor || '#FFE98A' }}
             >
               <span>{p.name}</span>
               {p.isDrawing && (
-                <span className="w-1.5 h-1.5 rounded-full bg-white animate-ping" />
+                <span className="w-1.5 h-1.5 rounded-full bg-ink animate-ping" />
               )}
             </div>
           </motion.div>

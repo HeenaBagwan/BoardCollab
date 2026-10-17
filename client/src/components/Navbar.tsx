@@ -241,8 +241,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="hidden sm:inline">Share</span>
             </button>
           </>
-        ) : (
-          <nav className="flex items-center gap-6">
+        ) : !user ? (
+          <nav className="flex items-center gap-4">
             <button
               onClick={() => navigate('/login')}
               className="text-sm font-medium text-ink-muted hover:text-ink transition-colors cursor-pointer"
@@ -255,6 +255,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               Try Canvas
             </button>
+          </nav>
+        ) : (
+          <nav className="flex items-center gap-2">
+            <span className="hidden sm:inline-block px-2.5 py-1 rounded-sm text-xs font-mono text-ink-muted bg-paper-card border border-border-paper">
+              Workspace
+            </span>
           </nav>
         )}
 
