@@ -6,6 +6,7 @@ import { query } from '../db/connection.js';
 import roomManager from '../crdt/roomState.js';
 import batchWriter from '../db/batchWriter.js';
 import { compareClocks } from '../crdt/lamport.js';
+import { checkIsAdmin } from '../controllers/auth.controller.js';
 
 export function setupSocketIO(httpServer) {
   const allowedOrigins = [
@@ -118,10 +119,14 @@ export function setupSocketIO(httpServer) {
         }
 
         const roomInfo = roomRows[0];
-        if (roomInfo.visibility === 'private' && !roomInfo.role) {
+        const isAdmin = checkIsAdmin(user.email);
+        if (roomInfo.visibility === 'private' && !roomInfo.role && !isAdmin) {
           if (callback) callback({ error: 'Access denied to private room' });
           return;
         }
+
+        // Store active role for this socket connection (enforces Feature 7: Sharing roles)
+        socket.roomRole = roomInfo.role || (isAdmin ? 'owner' : (roomInfo.visibility === 'public' ? 'editor' : 'viewer'));
 
         // Leave previous room if any
         if (currentRoomId) {
@@ -139,6 +144,7 @@ export function setupSocketIO(httpServer) {
         // Fetch user avatar color
         const [u] = await query('SELECT avatar_color FROM users WHERE id = ? LIMIT 1', [user.userId]);
         const avatarColor = u.length > 0 ? u[0].avatar_color : '#6366f1';
+        socket.userAvatar = avatarColor;
 
         // Add user presence
         roomState.setPresence(socket.id, {
@@ -146,6 +152,7 @@ export function setupSocketIO(httpServer) {
           userId: user.userId,
           name: user.name,
           avatarColor,
+          role: socket.roomRole,
           cursor: null,
           isDrawing: false
         });
@@ -157,14 +164,18 @@ export function setupSocketIO(httpServer) {
             chunkIndex: index,
             totalChunks: chunks.length,
             elements: chunk,
-            serverClock: roomState.clockCounter
+            serverClock: roomState.clockCounter,
+            role: socket.roomRole
           });
         });
 
         // Broadcast presence list to all room members
         io.to(roomId).emit('presence-update', { users: roomState.getPresenceList() });
 
-        if (callback) callback({ success: true, serverClock: roomState.clockCounter });
+        // Emit active comments
+        socket.emit('comments-sync', { comments: roomState.getCommentsList() });
+
+        if (callback) callback({ success: true, serverClock: roomState.clockCounter, role: socket.roomRole });
       } catch (err) {
         console.error('[Socket Error] join-room failed:', err);
         if (callback) callback({ error: err.message });
@@ -175,6 +186,12 @@ export function setupSocketIO(httpServer) {
     socket.on('op', async (opData, callback) => {
       if (!checkRateLimit()) return;
       if (!currentRoomId || !opData) return;
+
+      // Feature 7: Role enforcement — viewers cannot mutate whiteboard
+      if (socket.roomRole === 'viewer') {
+        if (callback) callback({ error: 'Viewers have read-only permissions and cannot edit canvas' });
+        return;
+      }
 
       try {
         const roomState = await roomManager.getRoom(currentRoomId);
@@ -194,6 +211,8 @@ export function setupSocketIO(httpServer) {
         if (changed) {
           // Push to MySQL write buffer
           batchWriter.queue(currentRoomId, mergedElement);
+          // Feature 1: Queue op into ops_log buffer (saved in same batched transaction)
+          batchWriter.queueOp(currentRoomId, op);
 
           // Push to undo stack
           roomState.pushUndo(user.userId, {
@@ -264,6 +283,153 @@ export function setupSocketIO(httpServer) {
         cursor: data.cursor,
         isDrawing: Boolean(data.isDrawing)
       });
+    });
+
+    // --- EVENT: viewport-move (Feature 2: Follow Mode sync) ---
+    socket.on('viewport-move', (data) => {
+      if (!currentRoomId || !data) return;
+      socket.to(currentRoomId).volatile.emit('viewport-move', {
+        userId: user.userId,
+        socketId: socket.id,
+        x: data.x,
+        y: data.y,
+        scale: data.scale
+      });
+    });
+
+    // --- EVENT: presenter-start / presenter-stop (Feature 2: Presentation Mode) ---
+    socket.on('presenter-start', () => {
+      if (!currentRoomId) return;
+      io.to(currentRoomId).emit('presenter-state', {
+        isPresenting: true,
+        presenterId: user.userId,
+        presenterName: user.name,
+        socketId: socket.id
+      });
+    });
+
+    socket.on('presenter-stop', () => {
+      if (!currentRoomId) return;
+      io.to(currentRoomId).emit('presenter-state', {
+        isPresenting: false
+      });
+    });
+
+    // --- EVENT: laser-point (Feature 2: Laser Pointer) ---
+    socket.on('laser-point', (data) => {
+      if (!currentRoomId || !data) return;
+      socket.to(currentRoomId).volatile.emit('laser-point', {
+        userId: user.userId,
+        socketId: socket.id,
+        x: data.x,
+        y: data.y,
+        color: data.color || '#D4FF3A',
+        isDone: Boolean(data.isDone)
+      });
+    });
+
+    // --- EVENT: cursor-chat (Feature 3: Cursor Chat) ---
+    socket.on('cursor-chat', (data) => {
+      if (!currentRoomId || !data) return;
+      socket.to(currentRoomId).volatile.emit('cursor-chat', {
+        userId: user.userId,
+        socketId: socket.id,
+        text: String(data.text || '').slice(0, 80),
+        x: data.x,
+        y: data.y
+      });
+    });
+
+    // --- EVENT: reaction (Feature 3: Reactions) ---
+    let lastReactionTime = 0;
+    socket.on('reaction', (data) => {
+      if (!currentRoomId || !data?.emoji) return;
+      const now = Date.now();
+      // Rate limit: max 6 reactions per second
+      if (now - lastReactionTime < 150) return;
+      lastReactionTime = now;
+
+      socket.to(currentRoomId).volatile.emit('reaction', {
+        userId: user.userId,
+        userName: user.name,
+        socketId: socket.id,
+        emoji: data.emoji,
+        x: data.x,
+        y: data.y
+      });
+    });
+
+    // --- EVENT: comment-add (Feature 6: Comments) ---
+    socket.on('comment-add', async (commentData, callback) => {
+      if (!currentRoomId || !commentData) return;
+      try {
+        const roomState = await roomManager.getRoom(currentRoomId);
+        const comment = {
+          id: commentData.id || crypto.randomUUID(),
+          roomId: currentRoomId,
+          userId: user.userId,
+          userName: user.name,
+          userAvatar: socket.userAvatar || '#FFE98A',
+          elementId: commentData.elementId || null,
+          x: Number(commentData.x || 0),
+          y: Number(commentData.y || 0),
+          text: String(commentData.text || '').trim(),
+          parentId: commentData.parentId || null,
+          isResolved: false,
+          createdAt: new Date().toISOString()
+        };
+
+        roomState.addComment(comment);
+
+        // Async MySQL write (best effort)
+        try {
+          await query(
+            'INSERT INTO comments (id, room_id, user_id, user_name, user_avatar, element_id, x, y, text, parent_id, is_resolved, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())',
+            [comment.id, comment.roomId, comment.userId, comment.userName, comment.userAvatar, comment.elementId, comment.x, comment.y, comment.text, comment.parentId, 0]
+          );
+        } catch {}
+
+        io.to(currentRoomId).emit('comment-added', comment);
+        if (callback) callback({ success: true, comment });
+      } catch (err) {
+        if (callback) callback({ error: err.message });
+      }
+    });
+
+    // --- EVENT: comment-resolve (Feature 6: Comments) ---
+    socket.on('comment-resolve', async ({ commentId, isResolved }, callback) => {
+      if (!currentRoomId || !commentId) return;
+      try {
+        const roomState = await roomManager.getRoom(currentRoomId);
+        roomState.resolveComment(commentId, isResolved);
+
+        try {
+          await query('UPDATE comments SET is_resolved = ? WHERE id = ?', [isResolved ? 1 : 0, commentId]);
+        } catch {}
+
+        io.to(currentRoomId).emit('comment-resolved', { commentId, isResolved });
+        if (callback) callback({ success: true });
+      } catch (err) {
+        if (callback) callback({ error: err.message });
+      }
+    });
+
+    // --- EVENT: comment-delete (Feature 6: Comments) ---
+    socket.on('comment-delete', async ({ commentId }, callback) => {
+      if (!currentRoomId || !commentId) return;
+      try {
+        const roomState = await roomManager.getRoom(currentRoomId);
+        roomState.deleteComment(commentId);
+
+        try {
+          await query('DELETE FROM comments WHERE id = ?', [commentId]);
+        } catch {}
+
+        io.to(currentRoomId).emit('comment-deleted', { commentId });
+        if (callback) callback({ success: true });
+      } catch (err) {
+        if (callback) callback({ error: err.message });
+      }
     });
 
     // --- EVENT: undo (per-user action reversal) ---

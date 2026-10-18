@@ -6,7 +6,11 @@ import {
   getRoomById,
   joinRoomByCode,
   deleteRoom,
-  exportRoomPng
+  exportRoomPng,
+  getRoomHistory,
+  createRoomInvite,
+  joinRoomByInvite,
+  getRoomComments
 } from '../controllers/room.controller.js';
 import { authenticate } from '../middleware/auth.js';
 import { validate } from '../middleware/validate.js';
@@ -27,8 +31,12 @@ const joinRoomSchema = z.object({
 
 router.post('/', validate({ body: createRoomSchema }), createRoom);
 router.get('/', getRooms);
-router.get('/:id', getRoomById);
 router.post('/join', validate({ body: joinRoomSchema }), joinRoomByCode);
+router.post('/join-invite', joinRoomByInvite);
+router.get('/:id', getRoomById);
+router.get('/:id/history', getRoomHistory);
+router.get('/:id/comments', getRoomComments);
+router.post('/:id/invites', createRoomInvite);
 router.delete('/:id', deleteRoom);
 router.post('/:id/export', exportRoomPng);
 

@@ -18,11 +18,17 @@ import ShapeRenderer from './shapes/ShapeRenderer';
 import { useViewportCulling } from '../hooks/useViewportCulling';
 import { simplifyPoints } from '../lib/simplification';
 import { CanvasElement, Op, ToolType } from '../types';
+import { recognizeStroke, RecognitionResult } from '../lib/shapeRecognizer';
+import { X } from 'lucide-react';
 
 interface CanvasStageProps {
   onEmitOp: (op: Op) => void;
   onEmitCursor: (cursor: { x: number; y: number } | null, isDrawing: boolean) => void;
   onEmitStrokeProgress: (data: { points: number[]; stroke: string; strokeWidth: number }) => void;
+  onEmitLaserPoint?: (data: { x: number; y: number; color?: string; isDone?: boolean }) => void;
+  onAddCommentClick?: (x: number, y: number) => void;
+  isReadOnly?: boolean;
+  replayElements?: CanvasElement[] | null;
   stageRef: React.RefObject<Konva.Stage>;
 }
 
@@ -30,6 +36,10 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
   onEmitOp,
   onEmitCursor,
   onEmitStrokeProgress,
+  onEmitLaserPoint,
+  onAddCommentClick,
+  isReadOnly = false,
+  replayElements = null,
   stageRef
 }) => {
   const dispatch = useAppDispatch();
@@ -43,6 +53,13 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
   const stageScale = useAppSelector((state) => state.canvas.stageScale);
   const localClock = useAppSelector((state) => state.canvas.localLamportCounter);
   const remoteStrokes = useAppSelector((state) => state.canvas.remoteStrokes);
+
+  const [shapeSuggestion, setShapeSuggestion] = useState<{
+    strokeId: string;
+    stroke: CanvasElement;
+    result: RecognitionResult;
+  } | null>(null);
+  const [isLaserDrawing, setIsLaserDrawing] = useState(false);
 
   const [dimensions, setDimensions] = useState({
     width: window.innerWidth,
@@ -165,6 +182,29 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     const worldX = (pointer.x - stagePos.x) / stageScale;
     const worldY = (pointer.y - stagePos.y) / stageScale;
 
+    // Read-only / viewer mode: allow panning with left click, disable canvas edits
+    if (isReadOnly) {
+      const isLeftClick = (e.evt as MouseEvent).button === 0;
+      if (isLeftClick) {
+        setIsPanning(true);
+        setPanStart({ x: pointer.x - stagePos.x, y: pointer.y - stagePos.y });
+      }
+      return;
+    }
+
+    // Comment tool (Feature 6)
+    if (activeTool === 'comment') {
+      onAddCommentClick?.(Math.round(worldX), Math.round(worldY));
+      return;
+    }
+
+    // Laser tool (Feature 2)
+    if (activeTool === 'laser') {
+      setIsLaserDrawing(true);
+      onEmitLaserPoint?.({ x: worldX, y: worldY, color: strokeColor });
+      return;
+    }
+
     // Eraser tool
     if (activeTool === 'eraser') {
       const clickedOn = e.target;
@@ -270,13 +310,18 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
       return;
     }
 
-    if (!activeDrawing) return;
-
     const pointer = stage.getPointerPosition();
     if (!pointer) return;
 
     const worldX = (pointer.x - stagePos.x) / stageScale;
     const worldY = (pointer.y - stagePos.y) / stageScale;
+
+    if (activeTool === 'laser' && isLaserDrawing) {
+      onEmitLaserPoint?.({ x: worldX, y: worldY, color: strokeColor });
+      return;
+    }
+
+    if (!activeDrawing) return;
 
     if (activeDrawing.type === 'pen' && activeDrawing.points) {
       const newPoints = [...activeDrawing.points, worldX, worldY];
@@ -304,6 +349,12 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
   const handlePointerUp = () => {
     if (isPanning) {
       setIsPanning(false);
+      return;
+    }
+
+    if (isLaserDrawing) {
+      setIsLaserDrawing(false);
+      onEmitLaserPoint?.({ x: 0, y: 0, isDone: true });
       return;
     }
 
@@ -348,6 +399,21 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
           clock: nextClock,
           userId: currentUserId
         });
+
+        // Feature 4: Shape Recognition via $1 algorithm
+        if (simplified.length >= 8) {
+          const match = recognizeStroke(simplified);
+          if (match && match.score >= 0.72) {
+            setShapeSuggestion({
+              strokeId: newEl.id,
+              stroke: newEl,
+              result: match
+            });
+            setTimeout(() => {
+              setShapeSuggestion((curr) => (curr?.strokeId === newEl.id ? null : curr));
+            }, 5000);
+          }
+        }
       }
     } else if (activeDrawing.type === 'rect') {
       const x = Math.min(activeDrawing.startX || 0, activeDrawing.currentX || 0);
@@ -478,6 +544,106 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
     });
   };
 
+  // Feature 4: Accept recognized shape and replace stroke via CRDT
+  const handleAcceptShape = (suggestion: { strokeId: string; stroke: CanvasElement; result: RecognitionResult }) => {
+    const { strokeId, result } = suggestion;
+    handleDeleteElement(strokeId);
+
+    const newId = uuidv4();
+    const nextClock = { counter: localClock + 1, userId: currentUserId };
+    dispatch(incrementLamport());
+
+    let shapeEl: CanvasElement;
+
+    if (result.shape === 'circle') {
+      const radius = Math.round(Math.max(result.bounds.width, result.bounds.height) / 2);
+      shapeEl = {
+        id: newId,
+        roomId: '',
+        type: 'circle',
+        props: {
+          x: Math.round(result.bounds.centerX),
+          y: Math.round(result.bounds.centerY),
+          radius: Math.max(10, radius),
+          fill: 'transparent',
+          stroke: strokeColor,
+          strokeWidth
+        },
+        propClocks: {
+          x: nextClock,
+          y: nextClock,
+          radius: nextClock,
+          fill: nextClock,
+          stroke: nextClock,
+          strokeWidth: nextClock
+        },
+        authorId: currentUserId,
+        isDeleted: false,
+        deleteClock: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+    } else {
+      shapeEl = {
+        id: newId,
+        roomId: '',
+        type: 'rect',
+        props: {
+          x: Math.round(result.bounds.minX),
+          y: Math.round(result.bounds.minY),
+          width: Math.max(15, Math.round(result.bounds.width)),
+          height: Math.max(15, Math.round(result.bounds.height)),
+          fill: 'transparent',
+          stroke: strokeColor,
+          strokeWidth,
+          cornerRadius: 4
+        },
+        propClocks: {
+          x: nextClock,
+          y: nextClock,
+          width: nextClock,
+          height: nextClock,
+          fill: nextClock,
+          stroke: nextClock,
+          strokeWidth: nextClock
+        },
+        authorId: currentUserId,
+        isDeleted: false,
+        deleteClock: null,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+    }
+
+    dispatch(upsertElement(shapeEl));
+    onEmitOp({
+      opId: uuidv4(),
+      elementId: shapeEl.id,
+      type: 'add',
+      props: shapeEl.props,
+      elementType: shapeEl.type,
+      clock: nextClock,
+      userId: currentUserId
+    });
+
+    setShapeSuggestion(null);
+  };
+
+  // Keyboard shortcut: Press Tab to accept shape suggestion
+  useEffect(() => {
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Tab' && shapeSuggestion) {
+        e.preventDefault();
+        handleAcceptShape(shapeSuggestion);
+      }
+    };
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [shapeSuggestion]);
+
+  // Elements to display (support Time-Travel Replay override)
+  const displayElements = replayElements !== null && replayElements !== undefined ? replayElements : culledElements;
+
   return (
     <div
       className={`relative w-full h-screen overflow-hidden paper-grid ${
@@ -485,11 +651,37 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
           ? 'cursor-grab active:cursor-grabbing'
           : activeTool === 'pen'
           ? 'cursor-crosshair'
+          : activeTool === 'laser'
+          ? 'cursor-crosshair'
+          : activeTool === 'comment'
+          ? 'cursor-cell'
           : activeTool === 'eraser'
           ? 'cursor-cell'
           : 'cursor-default'
       }`}
     >
+      {/* Feature 4: Floating Snap to Shape Suggestion Banner */}
+      {shapeSuggestion && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-40 flex items-center gap-2.5 px-3.5 py-2 rounded-lg bg-paper-card border border-ink shadow-[3px_4px_0px_#111110] font-mono text-xs animate-fade-in">
+          <span className="text-ink">
+            Convert stroke to clean <strong>{shapeSuggestion.result.name}</strong>? ({Math.round(shapeSuggestion.result.score * 100)}% match)
+          </span>
+          <button
+            onClick={() => handleAcceptShape(shapeSuggestion)}
+            className="btn-paper-accent px-2.5 py-1 text-[11px] font-bold cursor-pointer"
+          >
+            Accept (Tab)
+          </button>
+          <button
+            onClick={() => setShapeSuggestion(null)}
+            className="p-1 rounded text-ink-muted hover:text-ink hover:bg-paper-muted cursor-pointer"
+            title="Dismiss"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       <Stage
         ref={stageRef}
         width={dimensions.width}
@@ -507,8 +699,8 @@ export const CanvasStage: React.FC<CanvasStageProps> = ({
         onTouchEnd={handlePointerUp}
       >
         {/* 1. Static & Committed Layer with Viewport Culling */}
-        <Layer listening={activeTool === 'select' || activeTool === 'eraser'}>
-          {culledElements.map((element) => (
+        <Layer listening={!isReadOnly && (activeTool === 'select' || activeTool === 'eraser')}>
+          {displayElements.map((element) => (
             <ShapeRenderer
               key={element.id}
               element={element}

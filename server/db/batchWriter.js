@@ -4,6 +4,8 @@ class BatchWriter {
   constructor() {
     // Map<roomId, Map<elementId, elementData>>
     this.buffers = new Map();
+    // Map<roomId, Array<op>>
+    this.opsBuffers = new Map();
     this.timer = null;
     this.isFlushing = false;
     this.FLUSH_INTERVAL_MS = 5000;
@@ -38,10 +40,25 @@ class BatchWriter {
   }
 
   /**
+   * Queue an operation into ops_log buffer
+   * @param {string} roomId
+   * @param {object} op
+   */
+  queueOp(roomId, op) {
+    if (!this.opsBuffers.has(roomId)) {
+      this.opsBuffers.set(roomId, []);
+    }
+    this.opsBuffers.get(roomId).push(op);
+  }
+
+  /**
    * Flush all active room buffers
    */
   async flushAll() {
-    const roomIds = Array.from(this.buffers.keys());
+    const roomIds = new Set([
+      ...Array.from(this.buffers.keys()),
+      ...Array.from(this.opsBuffers.keys())
+    ]);
     for (const roomId of roomIds) {
       await this.flushRoom(roomId);
     }
@@ -52,11 +69,19 @@ class BatchWriter {
    */
   async flushRoom(roomId) {
     const roomBuffer = this.buffers.get(roomId);
-    if (!roomBuffer || roomBuffer.size === 0) return;
+    const opsBuffer = this.opsBuffers.get(roomId);
 
-    // Snapshot buffered items and clear buffer
-    const itemsToSave = Array.from(roomBuffer.values());
+    const hasElements = roomBuffer && roomBuffer.size > 0;
+    const hasOps = opsBuffer && opsBuffer.length > 0;
+
+    if (!hasElements && !hasOps) return;
+
+    // Snapshot buffered items and clear buffers
+    const itemsToSave = hasElements ? Array.from(roomBuffer.values()) : [];
+    const opsToSave = hasOps ? [...opsBuffer] : [];
+
     this.buffers.delete(roomId);
+    this.opsBuffers.delete(roomId);
 
     let attempts = 0;
     const maxRetries = 3;
@@ -69,34 +94,65 @@ class BatchWriter {
         connection = await getConnection();
         await connection.beginTransaction();
 
-        // Build bulk INSERT ... ON DUPLICATE KEY UPDATE
-        // MySQL 8 format
-        const valuePlaceholders = itemsToSave.map(() => '(?, ?, ?, ?, ?, ?, ?, NOW(), NOW())').join(', ');
-        const flatParams = [];
+        if (itemsToSave.length > 0) {
+          // Build bulk INSERT ... ON DUPLICATE KEY UPDATE
+          // MySQL 8 format
+          const valuePlaceholders = itemsToSave.map(() => '(?, ?, ?, ?, ?, ?, ?, NOW(), NOW())').join(', ');
+          const flatParams = [];
 
-        for (const el of itemsToSave) {
-          flatParams.push(
-            el.id,
-            el.roomId,
-            el.type,
-            JSON.stringify(el.props || {}),
-            JSON.stringify(el.propClocks || {}),
-            el.authorId,
-            el.isDeleted ? 1 : 0
-          );
+          for (const el of itemsToSave) {
+            flatParams.push(
+              el.id,
+              el.roomId,
+              el.type,
+              JSON.stringify(el.props || {}),
+              JSON.stringify(el.propClocks || {}),
+              el.authorId,
+              el.isDeleted ? 1 : 0
+            );
+          }
+
+          const sql = `
+            INSERT INTO elements (id, room_id, type, props, prop_clocks, author_id, is_deleted, created_at, updated_at)
+            VALUES ${valuePlaceholders}
+            ON DUPLICATE KEY UPDATE
+              props = VALUES(props),
+              prop_clocks = VALUES(prop_clocks),
+              is_deleted = VALUES(is_deleted),
+              updated_at = NOW();
+          `;
+
+          await connection.query(sql, flatParams);
         }
 
-        const sql = `
-          INSERT INTO elements (id, room_id, type, props, prop_clocks, author_id, is_deleted, created_at, updated_at)
-          VALUES ${valuePlaceholders}
-          ON DUPLICATE KEY UPDATE
-            props = VALUES(props),
-            prop_clocks = VALUES(prop_clocks),
-            is_deleted = VALUES(is_deleted),
-            updated_at = NOW();
-        `;
+        // Write batched ops into ops_log in the same transaction
+        if (opsToSave.length > 0) {
+          const opPlaceholders = opsToSave.map(() => '(?, ?, ?, ?, ?, ?, NOW())').join(', ');
+          const opParams = [];
 
-        await connection.query(sql, flatParams);
+          for (const op of opsToSave) {
+            opParams.push(
+              op.opId || op.id || crypto.randomUUID(),
+              roomId,
+              Number(op.clock?.counter || 0),
+              op.userId || 'anon',
+              op.type || 'update',
+              JSON.stringify(op)
+            );
+          }
+
+          try {
+            await connection.query(
+              `INSERT INTO ops_log (id, room_id, clock, user_id, op_type, payload, created_at) VALUES ${opPlaceholders}`,
+              opParams
+            );
+          } catch (opErr) {
+            // Gracefully ignore if ops_log table is not yet created in MySQL
+            if (opErr.code !== 'ER_NO_SUCH_TABLE') {
+              console.warn('[BatchWriter Warning] ops_log insert warning:', opErr.message);
+            }
+          }
+        }
 
         // Update room's last_updated timestamp
         await connection.query('UPDATE rooms SET last_updated = NOW() WHERE id = ?', [roomId]);
@@ -117,7 +173,7 @@ class BatchWriter {
 
         console.error(`[BatchWriter Error] Failed to flush room ${roomId}:`, error.message);
         // Put items back into buffer to never lose data
-        this.requeue(roomId, itemsToSave);
+        this.requeue(roomId, itemsToSave, opsToSave);
         break;
       } finally {
         if (connection) {
@@ -130,7 +186,7 @@ class BatchWriter {
   /**
    * Requeue items back into the buffer if save failed
    */
-  requeue(roomId, items) {
+  requeue(roomId, items = [], ops = []) {
     if (!this.buffers.has(roomId)) {
       this.buffers.set(roomId, new Map());
     }
@@ -139,6 +195,13 @@ class BatchWriter {
       if (!buf.has(item.id)) {
         buf.set(item.id, item);
       }
+    }
+
+    if (ops.length > 0) {
+      if (!this.opsBuffers.has(roomId)) {
+        this.opsBuffers.set(roomId, []);
+      }
+      this.opsBuffers.get(roomId).unshift(...ops);
     }
   }
 

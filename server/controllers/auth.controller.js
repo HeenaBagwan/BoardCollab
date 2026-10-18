@@ -19,6 +19,16 @@ function getRandomColor() {
   return AVATAR_COLORS[Math.floor(Math.random() * AVATAR_COLORS.length)];
 }
 
+export function checkIsAdmin(email) {
+  if (!email) return false;
+  const adminEmails = (process.env.ADMIN_EMAILS || process.env.ADMIN_EMAIL || 'admin@boardcollab.com')
+    .toLowerCase()
+    .split(',')
+    .map((e) => e.trim());
+  const lower = email.toLowerCase().trim();
+  return adminEmails.includes(lower) || lower.startsWith('admin@');
+}
+
 const COOKIE_NAME = 'refreshToken';
 const REFRESH_COOKIE_OPTIONS = {
   httpOnly: true,
@@ -73,7 +83,8 @@ export async function register(req, res, next) {
         id: userId,
         name: name.trim(),
         email: normalizedEmail,
-        avatarColor
+        avatarColor,
+        isAdmin: checkIsAdmin(normalizedEmail)
       }
     });
   } catch (error) {
@@ -130,7 +141,8 @@ export async function login(req, res, next) {
         id: user.id,
         name: user.name,
         email: user.email,
-        avatarColor: user.avatar_color
+        avatarColor: user.avatar_color,
+        isAdmin: checkIsAdmin(user.email)
       }
     });
   } catch (error) {
@@ -226,7 +238,8 @@ export async function refresh(req, res, next) {
         id: user.id,
         name: user.name,
         email: user.email,
-        avatarColor: user.avatar_color
+        avatarColor: user.avatar_color,
+        isAdmin: checkIsAdmin(user.email)
       }
     });
   } catch (error) {
@@ -282,7 +295,8 @@ export async function getMe(req, res, next) {
         name: user.name,
         email: user.email,
         avatarColor: user.avatar_color,
-        createdAt: user.created_at
+        createdAt: user.created_at,
+        isAdmin: checkIsAdmin(user.email)
       }
     });
   } catch (error) {

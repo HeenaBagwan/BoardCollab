@@ -3,6 +3,7 @@ import helmet from 'helmet';
 import cors from 'cors';
 import authRoutes from './routes/auth.routes.js';
 import roomRoutes from './routes/room.routes.js';
+import adminRoutes from './routes/admin.routes.js';
 import { apiLimiter } from './middleware/rateLimiter.js';
 import { errorHandler } from './middleware/errorHandler.js';
 
@@ -70,6 +71,7 @@ export function createApp() {
   app.use('/api', apiLimiter);
   app.use('/api/auth', authRoutes);
   app.use('/api/rooms', roomRoutes);
+  app.use('/api/admin', adminRoutes);
 
   // 7. 404 Catch-All
   app.use('*', (req, res) => {

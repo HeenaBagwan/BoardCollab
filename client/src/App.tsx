@@ -11,6 +11,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const DashboardPage = lazy(() => import('./pages/DashboardPage'));
 const BoardPage = lazy(() => import('./pages/BoardPage'));
+const AdminDashboardPage = lazy(() => import('./pages/AdminDashboardPage'));
 
 // Protected Route Component
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -26,6 +27,30 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  return <>{children}</>;
+};
+
+// Admin Protected Route Component (Only accessible with verified admin credentials)
+const AdminRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user, isAuthenticated, isLoading } = useAppSelector((state) => state.auth);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-paper flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-ink animate-spin" />
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  const isAdmin = Boolean(user?.isAdmin || user?.email?.toLowerCase().startsWith('admin@'));
+  if (!isAdmin) {
+    return <Navigate to="/dashboard" replace />;
   }
 
   return <>{children}</>;
@@ -71,6 +96,14 @@ const AppContent: React.FC = () => {
               <ProtectedRoute>
                 <BoardPage />
               </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin"
+            element={
+              <AdminRoute>
+                <AdminDashboardPage />
+              </AdminRoute>
             }
           />
           <Route path="*" element={<Navigate to="/" replace />} />

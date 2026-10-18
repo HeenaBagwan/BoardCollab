@@ -1,6 +1,8 @@
 import { v4 as uuidv4 } from 'uuid';
 import { query } from '../db/connection.js';
 import { renderElementsToPng } from '../utils/canvasRenderer.js';
+import roomManager from '../crdt/roomState.js';
+import { checkIsAdmin } from './auth.controller.js';
 
 /**
  * Generate a friendly 8-character uppercase room code
@@ -71,6 +73,7 @@ export async function createRoom(req, res, next) {
 export async function getRooms(req, res, next) {
   try {
     const userId = req.user.userId;
+    const isAdmin = checkIsAdmin(req.user.email);
 
     const [rooms] = await query(
       `SELECT r.id, r.room_code, r.name, r.visibility, r.created_at, r.last_updated,
@@ -81,7 +84,7 @@ export async function getRooms(req, res, next) {
        FROM rooms r
        JOIN users u ON r.owner_id = u.id
        LEFT JOIN room_members rm ON rm.room_id = r.id AND rm.user_id = ?
-       WHERE r.visibility = 'public' OR rm.user_id IS NOT NULL
+       WHERE ${isAdmin ? '1=1' : "r.visibility = 'public' OR rm.user_id IS NOT NULL"}
        ORDER BY r.last_updated DESC`,
       [userId]
     );
@@ -96,7 +99,7 @@ export async function getRooms(req, res, next) {
         lastUpdated: r.last_updated,
         ownerName: r.owner_name,
         ownerAvatar: r.owner_avatar,
-        myRole: r.my_role || (r.visibility === 'public' ? 'viewer' : null),
+        myRole: r.my_role || (r.visibility === 'public' || isAdmin ? 'editor' : null),
         memberCount: Number(r.member_count),
         elementCount: Number(r.element_count)
       }))
@@ -107,12 +110,13 @@ export async function getRooms(req, res, next) {
 }
 
 /**
- * Get room details by ID (with auto-join for public rooms)
+ * Get room details by ID (with auto-join for public rooms and admins)
  */
 export async function getRoomById(req, res, next) {
   try {
     const { id } = req.params;
     const userId = req.user.userId;
+    const isAdmin = checkIsAdmin(req.user.email);
 
     const [rows] = await query(
       `SELECT r.id, r.room_code, r.name, r.visibility, r.created_at, r.last_updated,
@@ -138,12 +142,14 @@ export async function getRoomById(req, res, next) {
     let myRole = membership.length > 0 ? membership[0].role : null;
 
     if (!myRole) {
-      if (room.visibility === 'public') {
-        // Automatically join public room as editor
-        await query(
-          'INSERT INTO room_members (room_id, user_id, role) VALUES (?, ?, ?)',
-          [id, userId, 'editor']
-        );
+      if (room.visibility === 'public' || isAdmin) {
+        // Automatically join public room or admin as editor
+        try {
+          await query(
+            'INSERT INTO room_members (room_id, user_id, role) VALUES (?, ?, ?)',
+            [id, userId, 'editor']
+          );
+        } catch {}
         myRole = 'editor';
       } else {
         return res.status(403).json({ message: 'Access denied to private room. Use invite code to join.' });
@@ -291,3 +297,189 @@ export async function exportRoomPng(req, res, next) {
     next(error);
   }
 }
+
+/**
+ * Get paginated room operations history for Time-Travel Replay
+ */
+export async function getRoomHistory(req, res, next) {
+  try {
+    const { id: roomId } = req.params;
+    const page = Math.max(1, parseInt(req.query.page || '1', 10));
+    const limit = Math.min(2000, Math.max(1, parseInt(req.query.limit || '500', 10)));
+    const sinceClock = parseInt(req.query.sinceClock || '0', 10);
+    const offset = (page - 1) * limit;
+
+    let ops = [];
+    let total = 0;
+
+    try {
+      const [countResult] = await query(
+        'SELECT COUNT(*) as total FROM ops_log WHERE room_id = ? AND clock >= ?',
+        [roomId, sinceClock]
+      );
+      total = countResult[0]?.total || 0;
+
+      const [rows] = await query(
+        `SELECT id, clock, user_id, op_type, payload, created_at
+         FROM ops_log
+         WHERE room_id = ? AND clock >= ?
+         ORDER BY clock ASC
+         LIMIT ? OFFSET ?`,
+        [roomId, sinceClock, limit, offset]
+      );
+
+      ops = rows.map((r) => ({
+        id: r.id,
+        clock: r.clock,
+        userId: r.user_id,
+        opType: r.op_type,
+        payload: typeof r.payload === 'string' ? JSON.parse(r.payload) : r.payload,
+        createdAt: r.created_at
+      }));
+    } catch (dbErr) {
+      // Table ops_log might not exist yet in dev; graceful fallback to in-memory roomState
+      const room = await roomManager.getRoom(roomId);
+      const allOps = room.getOpsLog(sinceClock, 5000);
+      total = allOps.length;
+      ops = allOps.slice(offset, offset + limit);
+    }
+
+    // If DB returned 0 ops but room is live in memory, pull from roomState opsLog
+    if (ops.length === 0) {
+      const room = await roomManager.getRoom(roomId);
+      const allOps = room.getOpsLog(sinceClock, 5000);
+      if (allOps.length > 0) {
+        total = allOps.length;
+        ops = allOps.slice(offset, offset + limit);
+      }
+    }
+
+    return res.json({
+      roomId,
+      ops,
+      total,
+      page,
+      limit,
+      hasMore: offset + ops.length < total
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Generate a role-based invite link (viewer vs editor) with optional expiration
+ */
+export async function createRoomInvite(req, res, next) {
+  try {
+    const { id: roomId } = req.params;
+    const { role = 'viewer', expiresInHours = 24 } = req.body;
+    const userId = req.user.userId;
+
+    // Verify user is owner or editor
+    const [membership] = await query(
+      'SELECT role FROM room_members WHERE room_id = ? AND user_id = ? LIMIT 1',
+      [roomId, userId]
+    );
+
+    if (membership.length === 0 || !['owner', 'editor'].includes(membership[0].role)) {
+      return res.status(403).json({ message: 'Only room owners and editors can generate invite links' });
+    }
+
+    const inviteCode = `inv_${uuidv4().replace(/-/g, '').slice(0, 16)}`;
+    const expiresAt = expiresInHours ? new Date(Date.now() + expiresInHours * 3600 * 1000) : null;
+
+    try {
+      await query(
+        'INSERT INTO room_invites (id, room_id, code, role, expires_at) VALUES (?, ?, ?, ?, ?)',
+        [uuidv4(), roomId, inviteCode, role, expiresAt]
+      );
+    } catch (err) {
+      // In-memory fallback
+      if (!roomManager.inviteFallbacks) roomManager.inviteFallbacks = new Map();
+      roomManager.inviteFallbacks.set(inviteCode, { roomId, role, expiresAt });
+    }
+
+    return res.status(201).json({
+      inviteCode,
+      role,
+      expiresAt,
+      inviteUrl: `/join-invite/${inviteCode}`
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Join a room via role-based invite link
+ */
+export async function joinRoomByInvite(req, res, next) {
+  try {
+    const { inviteCode } = req.body;
+    const userId = req.user.userId;
+
+    if (!inviteCode) {
+      return res.status(400).json({ message: 'Invite code is required' });
+    }
+
+    let invite = null;
+    try {
+      const [rows] = await query(
+        'SELECT room_id, role, expires_at FROM room_invites WHERE code = ? LIMIT 1',
+        [inviteCode.trim()]
+      );
+      if (rows.length > 0) invite = rows[0];
+    } catch {
+      invite = roomManager.inviteFallbacks?.get(inviteCode.trim());
+    }
+
+    if (!invite) {
+      invite = roomManager.inviteFallbacks?.get(inviteCode.trim());
+    }
+
+    if (!invite) {
+      return res.status(404).json({ message: 'Invalid or expired invite link' });
+    }
+
+    if (invite.expires_at && new Date(invite.expires_at).getTime() < Date.now()) {
+      return res.status(410).json({ message: 'This invite link has expired' });
+    }
+
+    // Add or update room member with specified role
+    const [existing] = await query(
+      'SELECT role FROM room_members WHERE room_id = ? AND user_id = ? LIMIT 1',
+      [invite.room_id, userId]
+    );
+
+    if (existing.length === 0) {
+      await query(
+        'INSERT INTO room_members (room_id, user_id, role) VALUES (?, ?, ?)',
+        [invite.room_id, userId, invite.role]
+      );
+    }
+
+    return res.json({
+      message: `Joined room as ${invite.role}`,
+      roomId: invite.room_id,
+      role: existing.length > 0 ? existing[0].role : invite.role
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
+/**
+ * Get active canvas comments for a room
+ */
+export async function getRoomComments(req, res, next) {
+  try {
+    const { id: roomId } = req.params;
+    const roomState = await roomManager.getRoom(roomId);
+    const comments = roomState.getCommentsList();
+    return res.json({ comments });
+  } catch (error) {
+    next(error);
+  }
+}
+

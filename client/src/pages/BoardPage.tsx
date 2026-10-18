@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import Konva from 'konva';
 import Navbar from '../components/Navbar';
 import CanvasStage from '../components/CanvasStage';
@@ -10,6 +10,12 @@ import Minimap from '../components/Minimap';
 import ZoomControls from '../components/ZoomControls';
 import OfflineBanner from '../components/OfflineBanner';
 import CommandPalette from '../components/CommandPalette';
+import LaserTrail, { LaserPoint } from '../components/LaserTrail';
+import ReactionsLayer, { FloatingReaction, PeerCursorChat } from '../components/ReactionsLayer';
+import CommentsLayer, { CommentItem } from '../components/CommentsLayer';
+import ReplayScrubber from '../components/ReplayScrubber';
+import ShareModal from '../components/ShareModal';
+import InstallPrompt from '../components/InstallPrompt';
 import { useAppDispatch, useAppSelector } from '../store';
 import {
   setElements,
@@ -22,7 +28,13 @@ import {
   clearAllElements,
   removePendingOp,
   setIsOffline,
-  setLamportCounter
+  setLamportCounter,
+  setStagePos,
+  setStageScale,
+  selectActiveElements,
+  pushUndo,
+  popUndo,
+  popRedo
 } from '../store/canvasSlice';
 import { fetchRoomById } from '../store/roomSlice';
 import { connectSocket, getSocket } from '../lib/socket';
@@ -30,9 +42,11 @@ import { queueOfflineOp, getOfflineQueue, clearOfflineQueue } from '../lib/offli
 import useKeyboardShortcuts from '../hooks/useKeyboardShortcuts';
 import api from '../lib/api';
 import { Op, CanvasElement } from '../types';
+import { Eye, Radio, X } from 'lucide-react';
 
 export const BoardPage: React.FC = () => {
   const { id: roomId } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
   const stageRef = useRef<Konva.Stage>(null);
@@ -44,24 +58,107 @@ export const BoardPage: React.FC = () => {
   const undoStack = useAppSelector((state) => state.canvas.undoStack);
   const redoStack = useAppSelector((state) => state.canvas.redoStack);
   const isOffline = useAppSelector((state) => state.canvas.isOffline);
+  const activeTool = useAppSelector((state) => state.canvas.tool);
+  const remotePresences = useAppSelector((state) => state.canvas.remotePresences);
+  const activeElements = useAppSelector(selectActiveElements);
 
+  // Role resolution
+  const urlRole = searchParams.get('role') as 'viewer' | 'editor' | null;
+  const inviteCode = searchParams.get('invite') || undefined;
+  const userRole: 'owner' | 'editor' | 'viewer' =
+    currentRoom?.ownerId === currentUser?.id || currentRoom?.myRole === 'owner'
+      ? 'owner'
+      : urlRole === 'viewer' || currentRoom?.myRole === 'viewer'
+      ? 'viewer'
+      : 'editor';
+
+  const isOwner = userRole === 'owner';
+  const isViewer = userRole === 'viewer';
+
+  // UI Panels & Modals State
   const [isPropertiesOpen, setIsPropertiesOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
-  const isOwner = currentRoom?.ownerId === currentUser?.id || currentRoom?.myRole === 'owner';
+  // Feature 1: Time-Travel Replay State
+  const [isReplayOpen, setIsReplayOpen] = useState(false);
+  const [replayElements, setReplayElements] = useState<CanvasElement[] | null>(null);
+
+  // Feature 2: Follow Mode, Presentation Mode, Laser Pointer State
+  const [followingUserId, setFollowingUserId] = useState<string | null>(null);
+  const [isPresenting, setIsPresenting] = useState(false);
+  const [presenterState, setPresenterState] = useState<{
+    active: boolean;
+    userId: string;
+    userName: string;
+  } | null>(null);
+  const [laserPoints, setLaserPoints] = useState<LaserPoint[]>([]);
+  const lastViewportEmitRef = useRef<number>(0);
+
+  // Feature 3: Reactions & Cursor Chat State
+  const [reactions, setReactions] = useState<FloatingReaction[]>([]);
+  const [peerChats, setPeerChats] = useState<Record<string, PeerCursorChat>>({});
+  const [myCursorChat, setMyCursorChat] = useState<{
+    isOpen: boolean;
+    text: string;
+    x: number;
+    y: number;
+  } | null>(null);
+  const lastMousePosRef = useRef<{ x: number; y: number }>({ x: 300, y: 300 });
+
+  // Feature 6: Comments State
+  const [comments, setComments] = useState<CommentItem[]>([]);
+  const [newCommentDraft, setNewCommentDraft] = useState<{ x: number; y: number } | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Fetch room metadata
+  // Fetch room metadata & initial comments
   useEffect(() => {
     if (roomId) {
       dispatch(fetchRoomById(roomId));
+      api.get(`/rooms/${roomId}/comments`)
+        .then((res) => {
+          if (res.data?.comments) {
+            setComments(res.data.comments);
+          }
+        })
+        .catch(() => {});
     }
   }, [roomId, dispatch]);
+
+  // Track global cursor coordinates for "/" cursor chat trigger
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      lastMousePosRef.current = { x: e.clientX, y: e.clientY };
+    };
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, []);
+
+  // Keyboard shortcut "/" to open cursor chat
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === '/' && !myCursorChat?.isOpen) {
+        const target = e.target as HTMLElement;
+        const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+        if (!isInput) {
+          e.preventDefault();
+          setMyCursorChat({
+            isOpen: true,
+            text: '',
+            x: lastMousePosRef.current.x,
+            y: lastMousePosRef.current.y
+          });
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [myCursorChat?.isOpen]);
 
   // Setup Socket.IO real-time connection & listeners
   useEffect(() => {
@@ -72,8 +169,8 @@ export const BoardPage: React.FC = () => {
     const handleConnect = () => {
       dispatch(setIsOffline(false));
 
-      // Join room and request state
-      socket.emit('join-room', { roomId }, (res: any) => {
+      // Join room with optional role & inviteCode
+      socket.emit('join-room', { roomId, role: userRole, inviteCode }, (res: any) => {
         if (res?.error) {
           showToast(res.error);
           navigate('/dashboard');
@@ -82,13 +179,15 @@ export const BoardPage: React.FC = () => {
         }
       });
 
-      // Replay any offline queued ops
-      const offlineOps = getOfflineQueue();
-      if (offlineOps.length > 0) {
-        offlineOps.forEach((op) => {
-          socket.emit('op', op);
-        });
-        clearOfflineQueue();
+      // Replay any offline queued ops (editors only)
+      if (!isViewer) {
+        const offlineOps = getOfflineQueue();
+        if (offlineOps.length > 0) {
+          offlineOps.forEach((op) => {
+            socket.emit('op', op);
+          });
+          clearOfflineQueue();
+        }
       }
     };
 
@@ -96,7 +195,7 @@ export const BoardPage: React.FC = () => {
       dispatch(setIsOffline(true));
     };
 
-    // 1. Initial / Paginated Room State
+    // 1. Initial Room State
     const handleRoomState = (data: { elements: CanvasElement[]; serverClock: number }) => {
       if (data.elements) {
         dispatch(upsertElements(data.elements));
@@ -106,7 +205,7 @@ export const BoardPage: React.FC = () => {
       }
     };
 
-    // 2. Incoming Op from other collaborator
+    // 2. Incoming Op
     const handleIncomingOp = (op: Op) => {
       if (op.type === 'add' && op.props) {
         dispatch(upsertElement({
@@ -122,7 +221,6 @@ export const BoardPage: React.FC = () => {
           updatedAt: new Date().toISOString()
         }));
       } else if (op.type === 'update' && op.patch) {
-        // Update local element properties
         const stateEl = (window as any).__BOARD_STATE_ENTITIES?.[op.elementId];
         dispatch(upsertElement({
           id: op.elementId,
@@ -156,7 +254,7 @@ export const BoardPage: React.FC = () => {
       }
     };
 
-    // 3. Batched Ops (~16ms flush from server)
+    // 3. Batched Ops
     const handleOpBatch = (data: { ops: Op[] }) => {
       if (data.ops) {
         data.ops.forEach(handleIncomingOp);
@@ -171,7 +269,7 @@ export const BoardPage: React.FC = () => {
       }
     };
 
-    // 5. Authoritative Reconcile (when local optimism differed)
+    // 5. Authoritative Reconcile
     const handleReconcile = (data: { element: CanvasElement }) => {
       if (data.element) {
         dispatch(upsertElement(data.element));
@@ -185,20 +283,101 @@ export const BoardPage: React.FC = () => {
       }
     };
 
-    // 7. Ephemeral In-Progress Strokes from peers
+    // 7. Ephemeral In-Progress Strokes
     const handleRemoteStrokeProgress = (data: any) => {
       dispatch(updateRemoteStroke(data));
     };
 
-    // 8. Ephemeral Cursor Movements from peers
+    // 8. Ephemeral Cursor Movements
     const handleRemoteCursor = (data: any) => {
       dispatch(updateRemoteCursor(data));
     };
 
-    // 9. Canvas Cleared (Owner)
+    // 9. Canvas Cleared
     const handleCanvasCleared = () => {
       dispatch(clearAllElements());
       showToast('Canvas was cleared by the owner');
+    };
+
+    // 10. Viewport Movements (Follow mode & Presentation mode)
+    const handleRemoteViewportMove = (data: {
+      userId: string;
+      userName?: string;
+      pos: { x: number; y: number };
+      scale: number;
+    }) => {
+      // Sync viewport if following this user OR if presenter is active for this user
+      setFollowingUserId((currentFollow) => {
+        setPresenterState((currPres) => {
+          const shouldFollow =
+            currentFollow === data.userId || (currPres?.active && currPres.userId === data.userId);
+          if (shouldFollow) {
+            dispatch(setStagePos(data.pos));
+            dispatch(setStageScale(data.scale));
+          }
+          return currPres;
+        });
+        return currentFollow;
+      });
+    };
+
+    // 11. Presenter State Broadcast
+    const handlePresenterState = (state: { active: boolean; userId: string; userName: string }) => {
+      setPresenterState(state);
+      if (state.active && state.userId !== currentUser?.id) {
+        showToast(`Presentation started by ${state.userName}`);
+      } else if (!state.active) {
+        showToast('Presentation ended');
+      }
+    };
+
+    // 12. Laser Point Broadcast
+    const handleLaserPoint = (pt: LaserPoint) => {
+      setLaserPoints((prev) => [...prev.slice(-120), { ...pt, time: Date.now() }]);
+    };
+
+    // 13. Ephemeral Cursor Chat Broadcast
+    const handleCursorChat = (chat: PeerCursorChat) => {
+      setPeerChats((prev) => ({
+        ...prev,
+        [chat.userId]: { ...chat, timestamp: Date.now() }
+      }));
+    };
+
+    // 14. Floating Reactions Broadcast
+    const handleReaction = (reaction: FloatingReaction) => {
+      setReactions((prev) => [
+        ...prev.slice(-25),
+        { ...reaction, id: reaction.id || crypto.randomUUID() }
+      ]);
+    };
+
+    // 15. Comments Sync & Updates
+    const handleCommentsSync = (data: any) => {
+      const incoming = data?.comments || (Array.isArray(data) ? data : []);
+      if (incoming.length > 0) {
+        setComments(incoming);
+      }
+    };
+
+    const handleCommentAdded = (data: any) => {
+      const comment: CommentItem = data?.comment || data;
+      if (!comment || !comment.id) return;
+      setComments((prev) => {
+        const exists = prev.some((c) => c.id === comment.id);
+        if (exists) return prev;
+        return [...prev, comment];
+      });
+    };
+
+    const handleCommentResolved = (data: { commentId: string; isResolved: boolean }) => {
+      setComments((prev) =>
+        prev.map((c) => (c.id === data.commentId ? { ...c, isResolved: data.isResolved } : c))
+      );
+    };
+
+    const handleCommentDeleted = (data: { commentId: string }) => {
+      setComments((prev) => prev.filter((c) => c.id !== data.commentId && c.parentId !== data.commentId));
     };
 
     socket.on('connect', handleConnect);
@@ -212,6 +391,15 @@ export const BoardPage: React.FC = () => {
     socket.on('stroke-progress', handleRemoteStrokeProgress);
     socket.on('cursor-move', handleRemoteCursor);
     socket.on('canvas-cleared', handleCanvasCleared);
+    socket.on('viewport-move', handleRemoteViewportMove);
+    socket.on('presenter-state', handlePresenterState);
+    socket.on('laser-point', handleLaserPoint);
+    socket.on('cursor-chat', handleCursorChat);
+    socket.on('reaction', handleReaction);
+    socket.on('comments-sync', handleCommentsSync);
+    socket.on('comment-added', handleCommentAdded);
+    socket.on('comment-resolved', handleCommentResolved);
+    socket.on('comment-deleted', handleCommentDeleted);
 
     if (socket.connected) {
       handleConnect();
@@ -230,19 +418,51 @@ export const BoardPage: React.FC = () => {
       socket.off('stroke-progress', handleRemoteStrokeProgress);
       socket.off('cursor-move', handleRemoteCursor);
       socket.off('canvas-cleared', handleCanvasCleared);
+      socket.off('viewport-move', handleRemoteViewportMove);
+      socket.off('presenter-state', handlePresenterState);
+      socket.off('laser-point', handleLaserPoint);
+      socket.off('cursor-chat', handleCursorChat);
+      socket.off('reaction', handleReaction);
+      socket.off('comments-sync', handleCommentsSync);
+      socket.off('comment-added', handleCommentAdded);
+      socket.off('comment-resolved', handleCommentResolved);
+      socket.off('comment-deleted', handleCommentDeleted);
     };
-  }, [roomId, dispatch, navigate]);
+  }, [roomId, userRole, inviteCode, dispatch, navigate, isViewer, currentUser?.id]);
 
-  // Outgoing Op Emission
-  const handleEmitOp = useCallback((op: Op) => {
+  // Outgoing Viewport Broadcast (throttled ~60ms when local user pans/zooms or presents)
+  useEffect(() => {
     const socket = getSocket();
-    if (socket.connected) {
-      socket.emit('op', op);
-    } else {
-      // Offline queue
-      queueOfflineOp(op);
+    if (!socket.connected) return;
+
+    // If presenter or actively followed, broadcast viewport movements
+    const now = Date.now();
+    if (now - lastViewportEmitRef.current > 50) {
+      lastViewportEmitRef.current = now;
+      socket.emit('viewport-move', {
+        pos: stagePos,
+        scale: stageScale
+      });
     }
-  }, []);
+  }, [stagePos, stageScale, isPresenting]);
+
+  // Outgoing Op Emission (blocked if in viewer role)
+  const handleEmitOp = useCallback(
+    (op: Op) => {
+      if (isViewer) {
+        showToast('View-only mode: mutations are disabled');
+        return;
+      }
+      dispatch(pushUndo(op));
+      const socket = getSocket();
+      if (socket.connected) {
+        socket.emit('op', op);
+      } else {
+        queueOfflineOp(op);
+      }
+    },
+    [isViewer, dispatch]
+  );
 
   // Outgoing Cursor Move Emission (~30ms throttled in CanvasStage)
   const handleEmitCursor = useCallback((cursor: { x: number; y: number } | null, isDrawing: boolean) => {
@@ -252,7 +472,7 @@ export const BoardPage: React.FC = () => {
     }
   }, []);
 
-  // Outgoing Ephemeral Stroke Progress Emission
+  // Outgoing Stroke Progress
   const handleEmitStrokeProgress = useCallback((data: { points: number[]; stroke: string; strokeWidth: number }) => {
     const socket = getSocket();
     if (socket.connected) {
@@ -260,20 +480,153 @@ export const BoardPage: React.FC = () => {
     }
   }, []);
 
-  // Per-User Undo & Redo Handlers (emits to server to preserve collaborative CRDT invariant)
+  // Outgoing Laser Point Emission
+  const handleEmitLaserPoint = useCallback((pt: { x: number; y: number; color?: string; isDone?: boolean }) => {
+    const socket = getSocket();
+    if (socket.connected) {
+      socket.emit('laser-point', pt);
+    }
+    // Only append valid laser coordinates locally (ignore isDone closing signal)
+    if (!pt.isDone && (pt.x !== 0 || pt.y !== 0)) {
+      setLaserPoints((prev) => [
+        ...prev.slice(-120),
+        {
+          x: pt.x,
+          y: pt.y,
+          color: pt.color || '#D4FF3A',
+          time: Date.now(),
+          userId: 'me'
+        }
+      ]);
+    }
+  }, []);
+
+  // Ephemeral Cursor Chat Handlers
+  const handleMyCursorChatChange = (text: string) => {
+    if (!myCursorChat) return;
+    setMyCursorChat({ ...myCursorChat, text });
+    const socket = getSocket();
+    if (socket.connected) {
+      socket.emit('cursor-chat', {
+        text,
+        x: lastMousePosRef.current.x,
+        y: lastMousePosRef.current.y
+      });
+    }
+  };
+
+  const handleMyCursorChatClose = () => {
+    setMyCursorChat(null);
+    const socket = getSocket();
+    if (socket.connected) {
+      socket.emit('cursor-chat', {
+        text: '',
+        x: lastMousePosRef.current.x,
+        y: lastMousePosRef.current.y
+      });
+    }
+  };
+
+  // Floating Reaction Emission
+  const handleEmitReaction = (emoji: string) => {
+    const socket = getSocket();
+    const x = lastMousePosRef.current.x;
+    const y = lastMousePosRef.current.y;
+    const userName = currentUser?.name || 'You';
+    if (socket.connected) {
+      socket.emit('reaction', { emoji, x, y, userName });
+    }
+    setReactions((prev) => [
+      ...prev.slice(-25),
+      {
+        id: crypto.randomUUID(),
+        emoji,
+        x,
+        y,
+        userId: currentUser?.id || 'anon',
+        userName
+      }
+    ]);
+  };
+
+  // Follow User Toggle
+  const handleFollowUser = (userId: string) => {
+    if (followingUserId === userId) {
+      setFollowingUserId(null);
+      showToast('Stopped following');
+    } else {
+      setFollowingUserId(userId);
+      const target = Object.values(remotePresences).find((p) => p.userId === userId);
+      showToast(`Now following ${target?.name || 'collaborator'}`);
+    }
+  };
+
+  // Presenter Mode Toggle
+  const handleTogglePresent = () => {
+    const socket = getSocket();
+    if (!socket.connected) return;
+
+    if (isPresenting) {
+      socket.emit('presenter-stop');
+      setIsPresenting(false);
+      showToast('Presenter mode stopped');
+    } else {
+      socket.emit('presenter-start');
+      setIsPresenting(true);
+      showToast('Presenter mode started - viewports are locked to yours');
+    }
+  };
+
+  // Comment Handlers
+  const handleAddComment = (text: string, canvasX: number, canvasY: number, parentId?: string | null) => {
+    const socket = getSocket();
+    if (!socket.connected) return;
+
+    socket.emit('comment-add', {
+      id: crypto.randomUUID(),
+      x: canvasX,
+      y: canvasY,
+      text,
+      parentId: parentId || null
+    });
+  };
+
+  const handleResolveComment = (commentId: string, isResolved: boolean) => {
+    const socket = getSocket();
+    if (socket.connected) {
+      socket.emit('comment-resolve', { commentId, isResolved });
+    }
+  };
+
+  const handleDeleteComment = (commentId: string) => {
+    const socket = getSocket();
+    if (socket.connected) {
+      socket.emit('comment-delete', { commentId });
+    }
+  };
+
+  const handleCanvasCommentClick = (x: number, y: number) => {
+    setNewCommentDraft({ x, y });
+  };
+
+  // Undo & Redo Handlers
   const handleUndo = useCallback(() => {
+    if (isViewer) return;
+    dispatch(popUndo());
     const socket = getSocket();
     if (socket.connected) {
       socket.emit('undo');
     }
-  }, []);
+  }, [isViewer, dispatch]);
 
   const handleRedo = useCallback(() => {
+    if (isViewer) return;
+    dispatch(popRedo());
     const socket = getSocket();
     if (socket.connected) {
       socket.emit('redo');
     }
-  }, []);
+  }, [isViewer, dispatch]);
 
   // Owner Clear Canvas
   const handleClearCanvas = useCallback(() => {
@@ -295,7 +648,7 @@ export const BoardPage: React.FC = () => {
     onToggleCommandPalette: () => setIsCommandPaletteOpen((prev) => !prev)
   });
 
-  // Client Instant PNG Export via Konva toDataURL
+  // Client Instant PNG Export
   const handleExportClientPng = () => {
     const stage = stageRef.current;
     if (!stage) return;
@@ -316,7 +669,7 @@ export const BoardPage: React.FC = () => {
     handleExportClientPng();
   };
 
-  // Server High-Res PNG Export via node-canvas
+  // Server High-Res PNG Export
   const handleExportServerPng = async () => {
     if (!roomId) return;
     try {
@@ -343,6 +696,13 @@ export const BoardPage: React.FC = () => {
     }
   };
 
+  // Following / Presenter Indicator label
+  const activePresenterName = presenterState?.active
+    ? presenterState.userName
+    : followingUserId
+    ? Object.values(remotePresences).find((p) => p.userId === followingUserId)?.name || 'Collaborator'
+    : null;
+
   return (
     <div className="relative w-screen h-screen overflow-hidden bg-paper text-ink paper-grain select-none">
       {/* Top Navbar */}
@@ -354,7 +714,34 @@ export const BoardPage: React.FC = () => {
         onExportPng={handleExportClientPng}
         onExportSvg={handleExportSvg}
         onExportServerPng={handleExportServerPng}
+        onOpenShareModal={() => setIsShareModalOpen(true)}
+        onTogglePresent={handleTogglePresent}
+        isPresenting={isPresenting}
+        userRole={userRole}
+        onFollowUser={handleFollowUser}
+        followingUserId={followingUserId}
       />
+
+      {/* Presentation / Following Mode Banner */}
+      {(presenterState?.active || followingUserId) && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-40 px-3.5 py-1.5 rounded-full bg-paper-card border border-ink shadow-[2px_2px_0px_#111110] flex items-center gap-2.5 font-mono text-xs animate-fade-in">
+          <Radio className="w-3.5 h-3.5 text-rose-500 animate-pulse" />
+          <span className="font-semibold text-ink">
+            {presenterState?.active
+              ? `Presentation Mode: Locked to ${activePresenterName}`
+              : `Following ${activePresenterName}`}
+          </span>
+          {followingUserId && !presenterState?.active && (
+            <button
+              onClick={() => setFollowingUserId(null)}
+              className="p-0.5 rounded hover:bg-paper-muted cursor-pointer"
+              title="Stop Following"
+            >
+              <X className="w-3.5 h-3.5 text-ink-muted hover:text-ink" />
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Offline Status Banner */}
       <OfflineBanner />
@@ -362,12 +749,44 @@ export const BoardPage: React.FC = () => {
       {/* Real-Time Live Collaborative Cursors Layer */}
       <LiveCursors stagePos={stagePos} stageScale={stageScale} />
 
+      {/* Real-Time Laser Pointer Fading Comet Trail Layer */}
+      <LaserTrail stagePos={stagePos} stageScale={stageScale} points={laserPoints} />
+
+      {/* Floating Emoji Reactions & Cursor Chat Layer */}
+      <ReactionsLayer
+        stagePos={stagePos}
+        stageScale={stageScale}
+        reactions={reactions}
+        peerChats={peerChats}
+        myCursorChat={myCursorChat}
+        onMyCursorChatChange={handleMyCursorChatChange}
+        onMyCursorChatClose={handleMyCursorChatClose}
+        onEmitReaction={handleEmitReaction}
+      />
+
+      {/* Threaded Canvas Pinned Comments Layer */}
+      <CommentsLayer
+        stagePos={stagePos}
+        stageScale={stageScale}
+        comments={comments}
+        isCommentToolActive={activeTool === 'comment'}
+        newCommentDraft={newCommentDraft}
+        onCancelNewComment={() => setNewCommentDraft(null)}
+        onAddComment={handleAddComment}
+        onResolveComment={handleResolveComment}
+        onDeleteComment={handleDeleteComment}
+      />
+
       {/* Main Konva Infinite Canvas Stage */}
       <CanvasStage
         stageRef={stageRef}
         onEmitOp={handleEmitOp}
         onEmitCursor={handleEmitCursor}
         onEmitStrokeProgress={handleEmitStrokeProgress}
+        onEmitLaserPoint={handleEmitLaserPoint}
+        onAddCommentClick={handleCanvasCommentClick}
+        isReadOnly={isReplayOpen || isViewer}
+        replayElements={replayElements}
       />
 
       {/* Floating Bottom Toolbar */}
@@ -380,6 +799,33 @@ export const BoardPage: React.FC = () => {
         isOwner={isOwner}
         onToggleProperties={() => setIsPropertiesOpen(!isPropertiesOpen)}
         isPropertiesOpen={isPropertiesOpen}
+        onToggleReplay={() => {
+          setIsReplayOpen(!isReplayOpen);
+          if (isReplayOpen) setReplayElements(null);
+        }}
+        isReplayOpen={isReplayOpen}
+        userRole={userRole}
+      />
+
+      {/* Time-Travel Replay Scrubber Timeline */}
+      <ReplayScrubber
+        roomId={roomId || ''}
+        isOpen={isReplayOpen}
+        onClose={() => {
+          setIsReplayOpen(false);
+          setReplayElements(null);
+        }}
+        onApplySnapshot={(elements) => setReplayElements(elements)}
+        collaborators={remotePresences}
+      />
+
+      {/* Role-Based Share & Invite Modal */}
+      <ShareModal
+        roomId={roomId || ''}
+        roomName={currentRoom?.name}
+        roomCode={currentRoom?.roomCode}
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
       />
 
       {/* Floating Properties Panel */}
@@ -406,6 +852,9 @@ export const BoardPage: React.FC = () => {
           showToast('Board link copied to clipboard!');
         }}
       />
+
+      {/* PWA App Shell Install Prompt UI */}
+      <InstallPrompt />
 
       {/* Toast Notification */}
       {toastMessage && (

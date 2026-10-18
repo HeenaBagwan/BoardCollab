@@ -10,6 +10,8 @@ class RoomState {
     this.presence = new Map(); // socketId -> { userId, name, avatarColor, cursor, isDrawing, lastActive }
     this.undoStacks = new Map(); // userId -> Array<op>
     this.redoStacks = new Map(); // userId -> Array<op>
+    this.opsLog = [];            // Array<{ id, clock, userId, opType, payload, createdAt }>
+    this.comments = new Map();   // commentId -> comment object
     this.lastActive = Date.now();
     this.isLoaded = false;
     this.loadingPromise = null;
@@ -55,6 +57,51 @@ class RoomState {
         });
       }
 
+      // Try loading past ops from ops_log if table exists
+      try {
+        const [opsRows] = await query(
+          'SELECT id, clock, user_id, op_type, payload, created_at FROM ops_log WHERE room_id = ? ORDER BY clock ASC LIMIT 2000',
+          [this.roomId]
+        );
+        for (const row of opsRows) {
+          const payload = typeof row.payload === 'string' ? JSON.parse(row.payload) : row.payload;
+          this.opsLog.push({
+            id: row.id,
+            clock: row.clock,
+            userId: row.user_id,
+            opType: row.op_type,
+            payload,
+            createdAt: row.created_at
+          });
+        }
+      } catch (err) {
+        // Table may not yet exist in development; graceful fallback to in-memory log
+      }
+
+      // Try loading comments if table exists
+      try {
+        const [commentRows] = await query(
+          'SELECT id, user_id, user_name, user_avatar, element_id, x, y, text, parent_id, is_resolved, created_at FROM comments WHERE room_id = ? ORDER BY created_at ASC',
+          [this.roomId]
+        );
+        for (const c of commentRows) {
+          this.comments.set(c.id, {
+            id: c.id,
+            roomId: this.roomId,
+            userId: c.user_id,
+            userName: c.user_name,
+            userAvatar: c.user_avatar,
+            elementId: c.element_id,
+            x: Number(c.x),
+            y: Number(c.y),
+            text: c.text,
+            parentId: c.parent_id,
+            isResolved: Boolean(c.is_resolved),
+            createdAt: c.created_at
+          });
+        }
+      } catch (err) {}
+
       this.clockCounter = maxCounter;
       this.isLoaded = true;
       this.lastActive = Date.now();
@@ -75,7 +122,60 @@ class RoomState {
     const { mergedElement, changed, previousProps } = applyOperation(current, op);
 
     this.elements.set(op.elementId, mergedElement);
+
+    // Record in in-memory opsLog (for timeline scrubber & replay)
+    this.opsLog.push({
+      id: op.opId || crypto.randomUUID(),
+      clock: op.clock?.counter || this.clockCounter,
+      userId: op.userId,
+      opType: op.type,
+      payload: op,
+      createdAt: new Date().toISOString()
+    });
+
+    if (this.opsLog.length > 5000) {
+      this.opsLog.shift(); // Bound memory
+    }
+
     return { mergedElement, changed, previousProps };
+  }
+
+  /**
+   * Return paginated opsLog for history replay
+   */
+  getOpsLog(sinceClock = 0, limit = 500) {
+    return this.opsLog
+      .filter((entry) => entry.clock >= sinceClock)
+      .slice(0, limit);
+  }
+
+  /**
+   * Comments helpers
+   */
+  addComment(comment) {
+    this.lastActive = Date.now();
+    this.comments.set(comment.id, comment);
+    return comment;
+  }
+
+  resolveComment(commentId, isResolved = true) {
+    this.lastActive = Date.now();
+    const c = this.comments.get(commentId);
+    if (c) {
+      c.isResolved = isResolved;
+      return c;
+    }
+    return null;
+  }
+
+  deleteComment(commentId) {
+    this.lastActive = Date.now();
+    const existed = this.comments.delete(commentId);
+    return existed;
+  }
+
+  getCommentsList() {
+    return Array.from(this.comments.values());
   }
 
   /**

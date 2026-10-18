@@ -37,8 +37,20 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ isOpen, onClos
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 15, scale: 0.95 }}
           transition={{ duration: 0.2 }}
-          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 p-4 rounded-lg bg-paper-card shadow-[4px_5px_0px_#111110] border border-ink flex flex-col gap-3.5 min-w-[320px]"
+          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-40 p-4 rounded-lg bg-paper-card shadow-[4px_5px_0px_#111110] border border-ink flex flex-col gap-3 min-w-[320px]"
         >
+          {/* Header with Title and Close Button */}
+          <div className="flex items-center justify-between border-b border-border-paper pb-2">
+            <span className="font-serif font-bold text-sm text-ink">Properties</span>
+            <button
+              onClick={onClose}
+              title="Close Properties"
+              className="p-1 rounded text-ink-muted hover:text-ink hover:bg-paper-muted cursor-pointer transition-colors"
+            >
+              <span className="font-mono text-xs font-bold px-1">✕</span>
+            </button>
+          </div>
+
           {/* Stroke Color */}
           <div>
             <div className="text-[11px] font-mono font-bold text-ink-muted uppercase tracking-wider mb-2">

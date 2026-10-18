@@ -1,6 +1,6 @@
 export type ElementType = 'stroke' | 'rect' | 'circle' | 'text';
 
-export type ToolType = 'select' | 'pen' | 'rect' | 'circle' | 'text' | 'eraser';
+export type ToolType = 'select' | 'pen' | 'rect' | 'circle' | 'text' | 'eraser' | 'laser' | 'comment';
 
 export interface LamportClock {
   counter: number;
@@ -77,6 +77,7 @@ export interface User {
   email: string;
   avatarColor: string;
   createdAt?: string;
+  isAdmin?: boolean;
 }
 
 export interface Room {

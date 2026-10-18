@@ -24,6 +24,12 @@ interface NavbarProps {
   onExportSvg?: () => void;
   onExportServerPng?: () => void;
   isBoard?: boolean;
+  onOpenShareModal?: () => void;
+  onTogglePresent?: () => void;
+  isPresenting?: boolean;
+  userRole?: 'owner' | 'editor' | 'viewer';
+  onFollowUser?: (userId: string) => void;
+  followingUserId?: string | null;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -33,7 +39,13 @@ export const Navbar: React.FC<NavbarProps> = ({
   onExportPng,
   onExportSvg,
   onExportServerPng,
-  isBoard = false
+  isBoard = false,
+  onOpenShareModal,
+  onTogglePresent,
+  isPresenting = false,
+  userRole = 'editor',
+  onFollowUser,
+  followingUserId = null
 }) => {
   const navigate = useNavigate();
   const dispatch = useAppDispatch();
@@ -159,21 +171,50 @@ export const Navbar: React.FC<NavbarProps> = ({
               </span>
             </div>
 
-            {/* Collaborator Avatars Stack */}
+            {/* Viewer role badge if applicable */}
+            {userRole === 'viewer' && (
+              <span className="hidden sm:inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-butter border border-ink text-ink">
+                VIEW-ONLY
+              </span>
+            )}
+
+            {/* Presenter Mode Toggle */}
+            {onTogglePresent && userRole !== 'viewer' && (
+              <button
+                onClick={onTogglePresent}
+                title={isPresenting ? 'Stop Presenting (Viewers are currently locked to your viewport)' : 'Start Presentation Mode (Broadcast and lock viewer viewports)'}
+                className={`px-2.5 py-1.5 rounded-md text-xs font-mono font-bold border border-ink transition-all cursor-pointer flex items-center gap-1.5 ${
+                  isPresenting
+                    ? 'bg-rose-500 text-paper shadow-[2px_2px_0px_#111110] animate-pulse'
+                    : 'bg-paper-card text-ink hover:bg-paper-muted shadow-[1.5px_1.5px_0px_#111110]'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${isPresenting ? 'bg-paper' : 'bg-rose-500'}`} />
+                <span className="hidden md:inline">{isPresenting ? 'Presenting' : 'Present'}</span>
+              </button>
+            )}
+
+            {/* Collaborator Avatars Stack (Click to Follow) */}
             <div className="hidden lg:flex items-center -space-x-1.5 overflow-hidden px-1">
-              {collaborators.slice(0, 4).map((c) => (
-                <div
-                  key={c.socketId}
-                  title={`${c.name}${c.isDrawing ? ' (Drawing)' : ''}`}
-                  className="w-7 h-7 rounded-full border border-ink flex items-center justify-center text-[10px] font-bold text-ink shadow-sm relative"
-                  style={{ backgroundColor: c.avatarColor || '#FFE98A' }}
-                >
-                  {c.name.charAt(0).toUpperCase()}
-                  {c.isDrawing && (
-                    <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent border border-ink" />
-                  )}
-                </div>
-              ))}
+              {collaborators.slice(0, 4).map((c) => {
+                const isFollowingThis = followingUserId === c.userId;
+                return (
+                  <button
+                    key={c.socketId}
+                    onClick={() => onFollowUser?.(c.userId)}
+                    title={`Click to ${isFollowingThis ? 'stop following' : 'follow'} ${c.name}'s viewport`}
+                    className={`w-7 h-7 rounded-full border border-ink flex items-center justify-center text-[10px] font-bold text-ink shadow-sm relative cursor-pointer transition-transform hover:scale-110 hover:z-20 ${
+                      isFollowingThis ? 'ring-2 ring-accent scale-105 z-10' : ''
+                    }`}
+                    style={{ backgroundColor: c.avatarColor || '#FFE98A' }}
+                  >
+                    {c.name.charAt(0).toUpperCase()}
+                    {c.isDrawing && (
+                      <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-accent border border-ink" />
+                    )}
+                  </button>
+                );
+              })}
               {collaborators.length > 4 && (
                 <div className="w-7 h-7 rounded-full bg-paper-card border border-ink flex items-center justify-center text-[10px] font-mono font-bold text-ink-muted">
                   +{collaborators.length - 4}
@@ -231,10 +272,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               )}
             </div>
 
-            {/* Share Button */}
+            {/* Share Button (triggers Share Modal) */}
             <button
-              onClick={handleShare}
-              title="Copy Board Link"
+              onClick={onOpenShareModal || handleShare}
+              title="Share Whiteboard Invite"
               className="btn-paper-accent px-3 py-1.5 text-xs font-mono"
             >
               <Share2 className="w-3.5 h-3.5" />
@@ -258,9 +299,22 @@ export const Navbar: React.FC<NavbarProps> = ({
           </nav>
         ) : (
           <nav className="flex items-center gap-2">
-            <span className="hidden sm:inline-block px-2.5 py-1 rounded-sm text-xs font-mono text-ink-muted bg-paper-card border border-border-paper">
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="hidden sm:inline-block px-2.5 py-1 rounded-sm text-xs font-mono text-ink-muted hover:text-ink bg-paper-card border border-border-paper cursor-pointer transition-colors"
+            >
               Workspace
-            </span>
+            </button>
+            {Boolean(user?.isAdmin || user?.email?.toLowerCase().startsWith('admin@')) && (
+              <button
+                onClick={() => navigate('/admin')}
+                className="px-2.5 py-1 rounded-sm text-xs font-mono font-bold text-accent-ink bg-accent/30 hover:bg-accent border border-ink/40 cursor-pointer transition-colors flex items-center gap-1"
+                title="Admin Telemetry: Live Rooms & Online Users"
+              >
+                <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse border border-ink/40" />
+                <span>Admin</span>
+              </button>
+            )}
           </nav>
         )}
 

@@ -75,3 +75,53 @@ CREATE TABLE IF NOT EXISTS `elements` (
   CONSTRAINT `fk_elements_room` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_elements_author` FOREIGN KEY (`author_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 6. Operations Log Table (for deterministic time-travel replay)
+CREATE TABLE IF NOT EXISTS `ops_log` (
+  `id` CHAR(36) NOT NULL,
+  `room_id` CHAR(36) NOT NULL,
+  `clock` INT NOT NULL,
+  `user_id` CHAR(36) NOT NULL,
+  `op_type` VARCHAR(30) NOT NULL,
+  `payload` JSON NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_ops_room_clock` (`room_id`, `clock`),
+  CONSTRAINT `fk_ops_room` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 7. Comments Table (pinned coordinate / element threads)
+CREATE TABLE IF NOT EXISTS `comments` (
+  `id` CHAR(36) NOT NULL,
+  `room_id` CHAR(36) NOT NULL,
+  `user_id` CHAR(36) NOT NULL,
+  `user_name` VARCHAR(100) NOT NULL,
+  `user_avatar` VARCHAR(20) NOT NULL DEFAULT '#FFE98A',
+  `element_id` CHAR(36) NULL DEFAULT NULL,
+  `x` FLOAT NOT NULL,
+  `y` FLOAT NOT NULL,
+  `text` TEXT NOT NULL,
+  `parent_id` CHAR(36) NULL DEFAULT NULL,
+  `is_resolved` TINYINT(1) NOT NULL DEFAULT 0,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_comments_room` (`room_id`),
+  KEY `idx_comments_parent` (`parent_id`),
+  CONSTRAINT `fk_comments_room` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- 8. Room Invites Table (role-based links with expiry)
+CREATE TABLE IF NOT EXISTS `room_invites` (
+  `id` CHAR(36) NOT NULL,
+  `room_id` CHAR(36) NOT NULL,
+  `code` VARCHAR(32) NOT NULL,
+  `role` ENUM('editor', 'viewer') NOT NULL DEFAULT 'viewer',
+  `expires_at` TIMESTAMP NULL DEFAULT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_invites_code` (`code`),
+  KEY `idx_invites_room` (`room_id`),
+  CONSTRAINT `fk_invites_room` FOREIGN KEY (`room_id`) REFERENCES `rooms` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
