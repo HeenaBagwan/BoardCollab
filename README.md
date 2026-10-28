@@ -108,7 +108,7 @@ CORS_ORIGIN=http://localhost:5173
 DB_HOST=127.0.0.1
 DB_PORT=3306
 DB_USER=root
-DB_PASSWORD=admin123
+DB_PASSWORD=your_db_password_here
 DB_NAME=boardcollab
 JWT_ACCESS_SECRET=your_jwt_access_secret_key_here
 JWT_REFRESH_SECRET=your_jwt_refresh_secret_key_here
@@ -167,6 +167,60 @@ Follow this 5-minute checklist to verify all real-time features manually:
    - In Window A, press **Ctrl+Z**: Only Alice's last action is undone. Bob's rectangle remains completely untouched!
 8. **Step 8: Command Palette & Exports**:
    - Press **Ctrl+K**: Open the Command Palette, search for "Export", and download an instant PNG.
+
+---
+
+## 🌐 Production Deployment (Free Tier: Vercel + Render + Aiven)
+
+BoardCollab is prepared for 100% free production deployment with automated CI/CD and zero new abstractions:
+
+| Component | Platform | Role | Why It's Used |
+| :--- | :--- | :--- | :--- |
+| **Frontend** | **Vercel** | React 18 SPA Hosting & Edge CDN | Global edge caching, sub-second TTFB, automated GitHub CI/CD, and SPA rewrites (`vercel.json`). |
+| **Backend** | **Render** | Node.js + Socket.IO Web Service | Real-time WebSocket hub, CRDT conflict resolution, automated `/health` checks, and batched DB writes. |
+| **Database** | **Aiven** | Managed Cloud MySQL 8 | Free-tier cloud MySQL instance with automated SSL/TLS encryption and daily backups. |
+
+> 📖 **Full Step-by-Step Guide**: Read [docs/deployment.md](file:///c:/Projects/BoardCollab/docs/deployment.md) for detailed screenshots, network diagrams, and troubleshooting tips.
+
+### 1. Database Setup (Aiven MySQL)
+1. Create a free MySQL service at [aiven.io](https://aiven.io). Note your host, port, user (`avnadmin`), and password.
+2. In Aiven's IP Filter settings, ensure `0.0.0.0/0` is permitted so Render can connect.
+3. Run the migration once from your local machine to create tables:
+   ```bash
+   cd server
+   DB_HOST=<aiven-host> DB_PORT=<aiven-port> DB_USER=avnadmin DB_PASSWORD=<aiven-password> DB_NAME=defaultdb DB_SSL=true DB_SSL_REJECT_UNAUTHORIZED=false npm run migrate
+   ```
+
+### 2. Backend Setup (Render Web Service)
+1. Create a **New > Web Service** connected to your repository on [render.com](https://render.com).
+2. Set **Root Directory** to `server`, **Build Command** to `npm install`, and **Start Command** to `npm start`.
+3. Set **Health Check Path** to `/health`.
+4. Configure Environment Variables:
+   - `NODE_ENV`: `production`
+   - `CLIENT_URL`: `https://your-app.vercel.app` *(Your Vercel URL without trailing slash)*
+   - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`: *(Aiven credentials)*
+   - `DB_SSL`: `true`
+   - `DB_SSL_REJECT_UNAUTHORIZED`: `false`
+   - `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`: *(Two distinct random 64-character strings)*
+   - `ADMIN_EMAILS`: `admin@boardcollab.com`
+   - *(Note: Leave `REDIS_URL` unset; the server runs in-memory without Redis on single-instance setups).*
+
+### 3. Frontend Setup (Vercel)
+1. Import your repository on [vercel.com](https://vercel.com).
+2. Set **Root Directory** to `client` and select the **Vite** framework preset.
+3. Configure Environment Variables:
+   - `VITE_API_URL`: `https://boardcollab-server.onrender.com/api`
+   - `VITE_SOCKET_URL`: `https://boardcollab-server.onrender.com`
+4. Deploy! Vercel automatically reads `client/vercel.json` to route direct links like `/board/:id` to `index.html`.
+
+### 4. Technical Concepts Demystified
+- **Why CORS is Needed**: Modern browsers block JavaScript running on `https://your-app.vercel.app` from querying an API on `https://your-server.onrender.com`. The server's CORS middleware allows only your `CLIENT_URL` with credentials.
+- **Why SameSite=None and Secure are Needed**: Because Vercel and Render are on different domains, the authentication refresh cookie is a **cross-site (third-party) cookie**. Modern browsers discard cross-site cookies unless marked with `SameSite=None` and transferred securely over HTTPS (`Secure`).
+- **How Auto-Deploy Works**: Every `git push` to `main` notifies Vercel and Render via webhooks, triggering instant rebuilds and deployments.
+- **How to Read Logs**:
+  - **Render**: Dashboard > Web Service > **Logs** (view server startup, DB connections, and WebSocket connections).
+  - **Vercel**: Dashboard > Deployments > **Building / Runtime Logs**.
+  - **Browser**: Open DevTools (`F12`) > **Console** & **Network** tabs (filter by `Fetch/XHR` and `WS`).
 
 ---
 

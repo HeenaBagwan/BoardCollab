@@ -15,19 +15,21 @@ export function createApp() {
     crossOriginResourcePolicy: { policy: 'cross-origin' }
   }));
 
-  // 2. CORS Allowlist
-  const allowedOrigins = [
-    process.env.CLIENT_URL || 'http://localhost:5173',
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://localhost:3000',
-    'http://127.0.0.1:3000'
-  ];
+  // 2. CORS: Allow only CLIENT_URL, with credentials
+  const rawClientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+  const allowedOrigins = rawClientUrl
+    .split(',')
+    .map((url) => url.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
 
   app.use(cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, server-to-server)
-      if (!origin || allowedOrigins.includes(origin)) {
+      // Allow requests with no origin (like health checks, curl, server-to-server)
+      if (!origin) {
+        return callback(null, true);
+      }
+      const normalizedOrigin = origin.replace(/\/+$/, '');
+      if (allowedOrigins.includes(normalizedOrigin)) {
         return callback(null, true);
       }
       return callback(new Error(`CORS blocked for origin: ${origin}`));
@@ -58,14 +60,18 @@ export function createApp() {
     next();
   });
 
-  // 5. Health Check
-  app.get('/api/health', (req, res) => {
-    res.json({
+  // 5. Health Check Routes (root /health for Render health checks and /api/health)
+  const healthHandler = (req, res) => {
+    res.status(200).json({
       status: 'ok',
+      uptime: process.uptime(),
       service: 'boardcollab-server',
       timestamp: new Date().toISOString()
     });
-  });
+  };
+
+  app.get('/health', healthHandler);
+  app.get('/api/health', healthHandler);
 
   // 6. API Rate Limiting & Routes
   app.use('/api', apiLimiter);

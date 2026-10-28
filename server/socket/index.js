@@ -9,17 +9,22 @@ import { compareClocks } from '../crdt/lamport.js';
 import { checkIsAdmin } from '../controllers/auth.controller.js';
 
 export function setupSocketIO(httpServer) {
-  const allowedOrigins = [
-    process.env.CLIENT_URL || 'http://localhost:5173',
-    'http://localhost:5173',
-    'http://127.0.0.1:5173',
-    'http://localhost:3000',
-    'http://127.0.0.1:3000'
-  ];
+  const rawClientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
+  const allowedOrigins = rawClientUrl
+    .split(',')
+    .map((url) => url.trim().replace(/\/+$/, ''))
+    .filter(Boolean);
 
   const io = new Server(httpServer, {
     cors: {
-      origin: allowedOrigins,
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        const normalized = origin.replace(/\/+$/, '');
+        if (allowedOrigins.includes(normalized)) {
+          return callback(null, true);
+        }
+        return callback(new Error(`Socket.IO CORS blocked for origin: ${origin}`));
+      },
       credentials: true
     },
     pingInterval: 25000,
@@ -27,10 +32,11 @@ export function setupSocketIO(httpServer) {
     transports: ['websocket', 'polling']
   });
 
-  // 1. Optional Redis Adapter (multi-instance horizontal scale)
-  if (process.env.REDIS_URL) {
+  // 1. Optional Redis Adapter (multi-instance horizontal scale; skipped if REDIS_URL is missing)
+  const redisUrl = process.env.REDIS_URL ? process.env.REDIS_URL.trim() : null;
+  if (redisUrl) {
     try {
-      const pubClient = new Redis(process.env.REDIS_URL, { maxRetriesPerRequest: 1 });
+      const pubClient = new Redis(redisUrl, { maxRetriesPerRequest: 1 });
       const subClient = pubClient.duplicate();
 
       pubClient.on('error', (err) => {
@@ -45,6 +51,8 @@ export function setupSocketIO(httpServer) {
     } catch (err) {
       console.warn('[Socket.IO Warning] Failed to initialize Redis Adapter, using in-memory adapter:', err.message);
     }
+  } else {
+    console.log('[Socket.IO] REDIS_URL not set — using default in-memory adapter');
   }
 
   // 2. Outgoing Op Batching (~16ms interval per room)

@@ -39,6 +39,7 @@ Thumbs.db
 mysql_data/
 redis_data/
 
-# Local documentation (excluded from remote git repository)
-docs/
+# Local documentation (excluded from remote git repository, except deployment guide)
+docs/*
+!docs/deployment.md
 

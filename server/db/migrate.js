@@ -14,19 +14,36 @@ const dbUser = process.env.DB_USER || 'root';
 const dbPassword = process.env.DB_PASSWORD !== undefined ? process.env.DB_PASSWORD : 'root';
 const dbName = process.env.DB_NAME || 'boardcollab';
 
+function getSSLConfig() {
+  const sslEnv = process.env.DB_SSL ? process.env.DB_SSL.trim().toLowerCase() : '';
+  if (sslEnv === 'true' || sslEnv === 'require' || sslEnv === '1') {
+    const ssl = {
+      rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED === 'true'
+    };
+    if (process.env.DB_SSL_CA) {
+      ssl.ca = process.env.DB_SSL_CA;
+    }
+    return ssl;
+  }
+  return undefined;
+}
+
 export async function runMigrations() {
   console.log(`[Migrate] Connecting to MySQL at ${dbHost}:${dbPort} as user '${dbUser}'...`);
 
   // Connect without DB to create if not exists
   let connection;
   try {
-    connection = await mysql.createConnection({
+    const connConfig = {
       host: dbHost,
       port: dbPort,
       user: dbUser,
       password: dbPassword,
       multipleStatements: true
-    });
+    };
+    const ssl = getSSLConfig();
+    if (ssl) connConfig.ssl = ssl;
+    connection = await mysql.createConnection(connConfig);
   } catch (err) {
     console.error(`[Migrate Error] Failed to connect to MySQL: ${err.message}`);
     throw err;

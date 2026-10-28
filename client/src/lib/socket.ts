@@ -3,9 +3,17 @@ import { getAccessToken } from './api';
 
 let socket: Socket | null = null;
 
+const rawSocketUrl = (import.meta.env.VITE_SOCKET_URL as string | undefined)?.trim();
+const rawApiUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+
+// Fallback chain: VITE_SOCKET_URL -> VITE_API_URL (strip /api) -> '/' (Vite dev proxy)
+export const SOCKET_URL = rawSocketUrl
+  ? rawSocketUrl.replace(/\/+$/, '')
+  : (rawApiUrl ? rawApiUrl.replace(/\/api\/?$/, '') : '/');
+
 export function getSocket(): Socket {
   if (!socket) {
-    socket = io('/', {
+    socket = io(SOCKET_URL, {
       autoConnect: false,
       withCredentials: true,
       transports: ['websocket', 'polling'],

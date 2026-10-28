@@ -29,11 +29,12 @@ export function checkIsAdmin(email) {
   return adminEmails.includes(lower) || lower.startsWith('admin@');
 }
 
+const isProduction = process.env.NODE_ENV === 'production';
 const COOKIE_NAME = 'refreshToken';
 const REFRESH_COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax',
+  secure: isProduction,
+  sameSite: isProduction ? 'none' : 'lax',
   path: '/',
   maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days in ms
 };
@@ -264,8 +265,8 @@ export async function logout(req, res, next) {
 
     res.clearCookie(COOKIE_NAME, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
       path: '/'
     });
     return res.json({ message: 'Logged out successfully' });
