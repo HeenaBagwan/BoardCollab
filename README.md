@@ -170,25 +170,26 @@ Follow this 5-minute checklist to verify all real-time features manually:
 
 ---
 
-## 🌐 Production Deployment (Free Tier: Vercel + Render + Aiven)
+## 🌐 Production Deployment (100% Free Forever: Vercel + Render + TiDB Cloud)
 
-BoardCollab is prepared for 100% free production deployment with automated CI/CD and zero new abstractions:
+BoardCollab is prepared for 100% free production deployment with **zero trial expiration**, automated CI/CD, and no new abstractions:
 
 | Component | Platform | Role | Why It's Used |
 | :--- | :--- | :--- | :--- |
-| **Frontend** | **Vercel** | React 18 SPA Hosting & Edge CDN | Global edge caching, sub-second TTFB, automated GitHub CI/CD, and SPA rewrites (`vercel.json`). |
-| **Backend** | **Render** | Node.js + Socket.IO Web Service | Real-time WebSocket hub, CRDT conflict resolution, automated `/health` checks, and batched DB writes. |
-| **Database** | **Aiven** | Managed Cloud MySQL 8 | Free-tier cloud MySQL instance with automated SSL/TLS encryption and daily backups. |
+| **Frontend** | **Vercel** | React 18 SPA Hosting & Edge CDN | Global edge caching, sub-second TTFB, automated GitHub CI/CD, and SPA rewrites (`vercel.json`). **Free Forever**. |
+| **Backend** | **Render** | Node.js + Socket.IO Web Service | Real-time WebSocket hub, CRDT conflict resolution, automated `/health` checks, and batched DB writes. **Free Forever**. |
+| **Database** | **TiDB Cloud** | Serverless MySQL-Compatible DB | 100% MySQL compatible, 5 GB storage, automated TLS/SSL encryption. **Free Forever, Never Expires (No Credit Card)**. |
 
 > 📖 **Full Step-by-Step Guide**: Read [docs/deployment.md](file:///c:/Projects/BoardCollab/docs/deployment.md) for detailed screenshots, network diagrams, and troubleshooting tips.
 
-### 1. Database Setup (Aiven MySQL)
-1. Create a free MySQL service at [aiven.io](https://aiven.io). Note your host, port, user (`avnadmin`), and password.
-2. In Aiven's IP Filter settings, ensure `0.0.0.0/0` is permitted so Render can connect.
-3. Run the migration once from your local machine to create tables:
+### 1. Database Setup (TiDB Cloud Serverless)
+1. Sign up for a free account at [tidbcloud.com](https://tidbcloud.com) (log in with GitHub or Google — no credit card needed).
+2. Create a **Serverless** cluster (Free $0/mo, 5 GB forever).
+3. Click **Connect** to get your connection details (Host, Port `4000`, User, Password, Database `test`).
+4. Run migrations once from your local computer:
    ```bash
    cd server
-   DB_HOST=<aiven-host> DB_PORT=<aiven-port> DB_USER=avnadmin DB_PASSWORD=<aiven-password> DB_NAME=defaultdb DB_SSL=true DB_SSL_REJECT_UNAUTHORIZED=false npm run migrate
+   DB_HOST=<tidb-host> DB_PORT=4000 DB_USER=<tidb-user> DB_PASSWORD=<tidb-password> DB_NAME=test DB_SSL=true DB_SSL_REJECT_UNAUTHORIZED=false npm run migrate
    ```
 
 ### 2. Backend Setup (Render Web Service)
@@ -198,7 +199,7 @@ BoardCollab is prepared for 100% free production deployment with automated CI/CD
 4. Configure Environment Variables:
    - `NODE_ENV`: `production`
    - `CLIENT_URL`: `https://your-app.vercel.app` *(Your Vercel URL without trailing slash)*
-   - `DB_HOST`, `DB_PORT`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`: *(Aiven credentials)*
+   - `DB_HOST`, `DB_PORT`: `4000`, `DB_USER`, `DB_PASSWORD`, `DB_NAME`: `test` *(TiDB Cloud credentials)*
    - `DB_SSL`: `true`
    - `DB_SSL_REJECT_UNAUTHORIZED`: `false`
    - `JWT_ACCESS_SECRET`, `JWT_REFRESH_SECRET`: *(Two distinct random 64-character strings)*
