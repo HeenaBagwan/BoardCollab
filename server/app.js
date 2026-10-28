@@ -10,6 +10,9 @@ import { errorHandler } from './middleware/errorHandler.js';
 export function createApp() {
   const app = express();
 
+  // Trust first proxy hop (Render / reverse proxy) for express-rate-limit and client IP
+  app.set('trust proxy', 1);
+
   // 1. Security Headers
   app.use(helmet({
     crossOriginResourcePolicy: { policy: 'cross-origin' }

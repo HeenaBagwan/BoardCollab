@@ -1,8 +1,5 @@
 -- BoardCollab Database Schema
--- MySQL 8.0+
-
-CREATE DATABASE IF NOT EXISTS `boardcollab` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE `boardcollab`;
+-- MySQL 8.0+ / TiDB Cloud
 
 -- 1. Users Table
 CREATE TABLE IF NOT EXISTS `users` (
