@@ -3,7 +3,7 @@
  */
 
 export function registerServiceWorker() {
-  if ('serviceWorker' in navigator && process.env.NODE_ENV !== 'development') {
+  if ('serviceWorker' in navigator && !import.meta.env.DEV) {
     window.addEventListener('load', () => {
       navigator.serviceWorker
         .register('/sw.js')
